@@ -3,7 +3,7 @@
  *
  * For more see: biotronics.eu
  *
- * Calibrate by pressing button in the pen electrode or short the electrodes when power device on
+ * Calibrate by pressing button in the pen electrode or short the electrodes when connect USB cable (power on)
  *
  */
 
