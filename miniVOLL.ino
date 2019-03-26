@@ -81,8 +81,9 @@ void loop() {
     delay(100);
   }
   if (started) {
+	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
     outputValue = map(inputVoltage, minimumSignalThresholdVolatge , maximumInputVoltage, 0 , 1000);
-    Serial.println(outputValue/10,1);
+    Serial.println(outputValue/10.0,1);
   }
 
   delay(10);
