@@ -11,7 +11,7 @@
 #include <EEPROM.h>
 
 
-#define SOFT_VER "2019-02-16"
+#define SOFT_VER "2019-03-26"
 #define HRDW_VER "NANO 1.0"
 
 #define analogInPin	A3	// Analog input form optocoupler
@@ -25,7 +25,7 @@
 
 #define eeAddress 0
 
-int inputVoltage = 0;
+long inputVoltage = 0;
 boolean started = false;
 int outputValue = 0;
 
@@ -60,7 +60,16 @@ void setup() {
 
 void loop() {
 
-  inputVoltage = analogRead(analogInPin)*oneBitEqivalentVoltage;
+  //inputVoltage = analogRead(analogInPin)*oneBitEqivalentVoltage;
+
+
+  // Use 8 samples instead of one
+  inputVoltage = 0;
+  for(int i=0; i<8; i++){
+	  inputVoltage +=analogRead(analogInPin);
+  }
+  inputVoltage = (inputVoltage >> 3) * oneBitEqivalentVoltage;
+
 
   if (inputVoltage>minimumSignalThresholdVolatge && !started){
     started = true;
@@ -72,8 +81,8 @@ void loop() {
     delay(100);
   }
   if (started) {
-    outputValue = map(inputVoltage, minimumSignalThresholdVolatge , maximumInputVoltage, 0 , 100);
-    Serial.println(outputValue);
+    outputValue = map(inputVoltage, minimumSignalThresholdVolatge , maximumInputVoltage, 0 , 1000);
+    Serial.println(outputValue/10,1);
   }
 
   delay(10);
