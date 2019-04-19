@@ -11,17 +11,17 @@
 #include <EEPROM.h>
 
 
-#define SOFT_VER "2019-03-26"
+#define SOFT_VER "2019-04-19"
 #define HRDW_VER "NANO 1.0"
 
-#define analogInPin	A3	// Analog input form optocoupler
+#define analogInPin	A3	// Analog input from optocoupler
 #define buzzerPin	4	// For signal buzzer
 
 
 #define oneBitEqivalentVoltage 3.2258 // 1023bits = 3.3V => 1bit = 3.2258mV
 #define maximumInputThresholdVoltage 3000 // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
 
-#define minimumSignalThresholdVolatge 1171 // Threshold & 0%
+#define minimumSignalThresholdVolatge 1171 // Threshold of 0%
 
 #define eeAddress 0
 
@@ -31,7 +31,8 @@ int outputValue = 0;
 
 int maximumInputVoltage = maximumInputThresholdVoltage;
 
-void startGraph();
+void startCmd();
+void saveCmd();
 void beep(int millis);
 void calibrate();
 
@@ -73,7 +74,7 @@ void loop() {
 
   if (inputVoltage>minimumSignalThresholdVolatge && !started){
     started = true;
-    startGraph();
+    startCmd();
   }
 
   if (inputVoltage<=minimumSignalThresholdVolatge){
@@ -83,17 +84,27 @@ void loop() {
   if (started) {
 	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
     outputValue = map(inputVoltage, minimumSignalThresholdVolatge , maximumInputVoltage, 0 , 1000);
-    Serial.println(outputValue/10.0,1);
+
+    //Check pressed button (more then 90%)
+    if (outputValue>900) {
+    	saveCmd;
+    } else {
+    	Serial.println(outputValue/10.0,1);
+    }
+
   }
 
-  delay(10);
+  delay(100);
 }
 
-void startGraph(){
+void startCmd(){
+    Serial.println(":start");
+    //Serial.println(100);
+    //for (int i=0; i<100; i++) Serial.println(0);
+}
 
-    Serial.println(100);
-    for (int i=0; i<100; i++) Serial.println(0);
-
+void saveCmd(){
+	Serial.println(":save");
 }
 
 void beep(int millis){
