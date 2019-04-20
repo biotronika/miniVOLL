@@ -11,7 +11,7 @@
 #include <EEPROM.h>
 
 
-#define SOFT_VER "2019-04-19"
+#define SOFT_VER "2019-04-20"
 #define HRDW_VER "NANO 1.0"
 
 #define analogInPin	A3	// Analog input from optocoupler
