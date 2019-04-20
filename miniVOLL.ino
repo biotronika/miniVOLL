@@ -21,9 +21,11 @@
 #define oneBitEqivalentVoltage 3.2258 // 1023bits = 3.3V => 1bit = 3.2258mV
 #define maximumInputThresholdVoltage 3000 // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
 
-#define minimumSignalThresholdVolatge 1171 // Threshold of 0%
+#define minimumSignalThresholdVolatge 900 //1171 // Threshold of 0%
 
 #define eeAddress 0
+
+#define WELCOME_SCR "bioZAP interpreter welcome! See http://biotronics.eu"
 
 long inputVoltage = 0;
 boolean started = false;
@@ -33,6 +35,7 @@ int maximumInputVoltage = maximumInputThresholdVoltage;
 
 void startCmd();
 void saveCmd();
+void btnCmd();
 void beep(int millis);
 void calibrate();
 
@@ -55,8 +58,14 @@ void setup() {
 		EEPROM.get(eeAddress, maximumInputVoltage);
 	}
 
-	Serial.println(100);
-	Serial.println(0);
+    Serial.println(WELCOME_SCR);
+    Serial.print("Device miniVOLL ");
+    Serial.print(HRDW_VER);
+    Serial.print(" ");
+    Serial.println(SOFT_VER);
+
+	//Serial.println(100);
+	//Serial.println(0);
 }
 
 void loop() {
@@ -72,9 +81,13 @@ void loop() {
   inputVoltage = (inputVoltage >> 3) * oneBitEqivalentVoltage;
 
 
-  if (inputVoltage>minimumSignalThresholdVolatge && !started){
+  if (inputVoltage>minimumSignalThresholdVolatge && !started && inputVoltage < maximumInputVoltage){
     started = true;
     startCmd();
+  }
+
+  if(!started && inputVoltage > maximumInputVoltage){
+	  btnCmd();
   }
 
   if (inputVoltage<=minimumSignalThresholdVolatge){
@@ -87,14 +100,14 @@ void loop() {
 
     //Check pressed button (more then 90%)
     if (outputValue>900) {
-    	saveCmd;
+    	saveCmd();
     } else {
-    	Serial.println(outputValue/10.0,1);
+    	Serial.println(outputValue);
     }
 
   }
 
-  delay(100);
+  delay(20);
 }
 
 void startCmd(){
@@ -105,6 +118,10 @@ void startCmd(){
 
 void saveCmd(){
 	Serial.println(":save");
+}
+
+void btnCmd(){
+	Serial.println(":btn");
 }
 
 void beep(int millis){
