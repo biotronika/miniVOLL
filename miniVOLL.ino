@@ -63,6 +63,7 @@ void setup() {
     Serial.print(HRDW_VER);
     Serial.print(" ");
     Serial.println(SOFT_VER);
+    Serial.println(">");
 
 	//Serial.println(100);
 	//Serial.println(0);
