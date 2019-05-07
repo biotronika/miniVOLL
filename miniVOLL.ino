@@ -16,10 +16,11 @@
 #define SOFT_VER "2019-05-05"
 #define HRDW_VER "NANO 1.0"
 
-#define analogInPin	A3	// Analog input from optocoupler from EAV circuit
-#define buzzerPin	6	// Signal buzzer
-#define analogCurrentPin A5 //Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
-#define electrodePin 10  // Active electrode signal (II-3)
+#define analogInPin	A3		// Analog input from optocoupler from EAV circuit
+#define buzzerPin	6		// Signal buzzer
+#define analogCurrentPin A5 // Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
+#define electrodePin 10  	// Active electrode signal (II-3)
+#define polarizationPin 2	// Polarization relay pin
 
 #define oneBitEqivalentVoltage 3.2258 // 1023bits = 3.3V => 1bit = 3.2258mV
 #define maximumInputThresholdVoltage 3000 // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
@@ -41,7 +42,7 @@ int maximumInputVoltage = 2500; //maximumInputThresholdVoltage;
 String inputString = "";                // A string to hold incoming serial data
 boolean stringComplete = false;         // whether the string is complete
 String param[MAX_CMD_PARAMS];           // param[0] = cmd name
-unsigned int pwm = 10; 					// Duty cycle 10 = 1% (0 - 1000)
+float pwm = 1.0; 					    // Duty cycle, default 1% (0.0% - 100.0%)
 boolean currentMesurement = false;
 
 void startCmd();
@@ -49,13 +50,14 @@ void saveCmd();
 void btnCmd();
 void beep(int millis);
 void calibrate();
-void freq(unsigned long aFreq, unsigned int aPWM);
+void freq(unsigned long aFreq, float aPWM);
 void getParams(String &inputString);
 int executeCmd(String cmdLine);
 
 void setup() {
 	pinMode(buzzerPin, OUTPUT);
 	pinMode(electrodePin, OUTPUT);
+	pinMode(polarizationPin, OUTPUT);
 
 
 	analogReference(INTERNAL); //Change to 3.3V External Arduino NANO reference
@@ -186,9 +188,9 @@ void calibrate(){
 
 }
 
-void freq(unsigned long aFreq, unsigned int aPWM){
+void freq(unsigned long aFreq, float aPWM){
 /* Function generating signal on pin PD10
- * aFreq put *10, e.g. 10Hz = 100
+ * aFreq put *100, e.g. 10Hz = 1000
  * aPWM is duty cycle in percentage *10, e.g. 1% = 10
  */
 
@@ -204,22 +206,22 @@ void freq(unsigned long aFreq, unsigned int aPWM){
 
 
     // Choose the best prescaler for the frequency
-    if (aFreq < 10) {
+    if (aFreq < 100) {
 
     	prescaler = 1024;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (1 << CS11)   | (1 << CS10);
 
-    } else if (aFreq < 40){
+    } else if (aFreq < 400){
 
     	prescaler = 256;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (0 << CS11)   | (0 << CS10);
 
-    } else if (aFreq < 310) {
+    } else if (aFreq < 3100) {
 
     	prescaler = 64;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (0 << CS12)   | (1 << CS11)   | (1 << CS10);
 
-    } else if (aFreq < 2500) {
+    } else if (aFreq < 25000) {
 
     	prescaler = 8;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (0 << CS12)   | (1 << CS11)   | (0 << CS10);
@@ -234,10 +236,10 @@ void freq(unsigned long aFreq, unsigned int aPWM){
 
 
     //Set the nearest applicable frequency
-    OCR1A = F_CPU /( prescaler * (aFreq / 10.0))-1; //31250 //2Hz
+    OCR1A = F_CPU /( prescaler * (aFreq / 100.0))-1; //31250 //2Hz
 
     //Set PWM duty cycle
-    OCR1B = (aPWM/1000.0) * OCR1A;
+    OCR1B = (aPWM/100) * OCR1A;
 
     // enable timer compare interrupt:
     //TIMSK1 |= (1 << OCIE1A);
@@ -332,12 +334,13 @@ int executeCmd(String cmdLine){
 // Emptyline
 
     	;
-    } else if (param[0]=="cmes"){
+    } else if (param[0]=="current"){
 // Start current measurement
-    	currentMesurement:=param[1].toInt();
+//TODO: timer1 break jump
+    	currentMesurement=1;
 
 
-    } else if (param[0]=="stop"){
+    } else if (param[0]=="sfreq"){
 // Stop freq function
     	freqStop();
     	Serial.println("OK");
@@ -354,20 +357,17 @@ int executeCmd(String cmdLine){
 // Change output signal polarity
 
     	if (param[1]=="~") {
-    		//relayState ^= B11;
-
+    		digitalWrite(polarizationPin, !digitalRead(polarizationPin));
     	} else {
-    		//relayState = byte(param[1].toInt()) & B11;
+    		digitalWrite(polarizationPin, param[1].toInt());
 
     	}
-		//chp(relayState); // Bxx:  Aux, Main;
     	Serial.println("OK");
 
 
     } else if (param[0]=="pwm"){
 // Change pwm duty cycle
-
-    	pwm = constrain( param[1].toInt(), 0, 1000) ;
+    	pwm =constrain(param[1].toFloat(), 0, 100);
     	Serial.println("OK");
 
 
@@ -375,7 +375,7 @@ int executeCmd(String cmdLine){
 // Generate square signal - freq [freq] [pwm]
 
     	if (param[2] != "") {
-    		pwm = constrain( param[2].toInt(), 0, 1000) ;
+    		pwm = constrain( param[2].toFloat(), 0, 100) ;
     	}
 
     	freq(param[1].toInt(), pwm);
