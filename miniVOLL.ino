@@ -13,7 +13,7 @@
 //#define SERIAL_DEBUG
 
 
-#define SOFT_VER "2019-05-05"
+#define SOFT_VER "2019-05-10"
 #define HRDW_VER "NANO 1.0"
 
 #define analogInPin	A3		// Analog input from optocoupler from EAV circuit
@@ -22,21 +22,21 @@
 #define electrodePin 10  	// Active electrode signal (II-3)
 #define polarizationPin 2	// Polarization relay pin
 
-#define oneBitEqivalentVoltage 3.2258 // 1023bits = 3.3V => 1bit = 3.2258mV
-#define maximumInputThresholdVoltage 3000 // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
+#define ONE_BIT_VOLTAGE 3.2258 				// 1023bits = 3.3V => 1bit = 3.2258mV
+#define ONE_BIT_CURRENT 9.775 				// 1023bits 330R with REF=3.3V => 1bit = 9.775uA
+#define MAX_INPUT_THRESHOLD_VOLTAGE 2500 	// Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
+#define MIN_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of 0%
 
-#define minimumSignalThresholdVolatge 900 //1171 // Threshold of 0%
-
-#define eeAddress 0
+#define eeAddress 0			//  Address of calibration value
 
 #define WELCOME_SCR "bioZAP interpreter welcome! See http://biotronics.eu"
-#define MAX_CMD_PARAMS 4    // Count of command parameters
+#define MAX_CMD_PARAMS 3    // Count of command parameters
 
 long inputVoltage = 0;
 boolean started = false;
 int outputValue = 0;
 
-int maximumInputVoltage = 2500; //maximumInputThresholdVoltage;
+int maximumInputVoltage = MAX_INPUT_THRESHOLD_VOLTAGE;
 
 
 String inputString = "";                // A string to hold incoming serial data
@@ -44,6 +44,7 @@ boolean stringComplete = false;         // whether the string is complete
 String param[MAX_CMD_PARAMS];           // param[0] = cmd name
 float pwm = 1.0; 					    // Duty cycle, default 1% (0.0% - 100.0%)
 boolean currentMesurement = false;
+volatile unsigned int current = 0;
 
 void startCmd();
 void saveCmd();
@@ -66,7 +67,7 @@ void setup() {
 
 	beep(100);
 
-	if (analogRead(analogInPin)*oneBitEqivalentVoltage > maximumInputVoltage) {
+	if (analogRead(analogInPin)*ONE_BIT_VOLTAGE > maximumInputVoltage) {
 		//New calibration
 		calibrate();
 	} else {
@@ -114,10 +115,10 @@ void loop() {
   for(int i=0; i<8; i++){
 	  inputVoltage +=analogRead(analogInPin);
   }
-  inputVoltage = (inputVoltage >> 3) * oneBitEqivalentVoltage;
+  inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 
 
-  if (inputVoltage>minimumSignalThresholdVolatge && !started && inputVoltage < maximumInputVoltage){
+  if (inputVoltage>MIN_INPUT_THRESHOLD_VOLTAGE && !started && inputVoltage < maximumInputVoltage){
     started = true;
     startCmd();
     delay(20);
@@ -128,13 +129,13 @@ void loop() {
 	  delay(20);
   }
 
-  if (inputVoltage<=minimumSignalThresholdVolatge){
+  if (inputVoltage<=MIN_INPUT_THRESHOLD_VOLTAGE){
     started=false;
     delay(100);
   }
   if (started) {
 	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
-    outputValue = map(inputVoltage, minimumSignalThresholdVolatge , maximumInputVoltage, 0 , 1000);
+    outputValue = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
     delay(20);
 
     //Check pressed button (more then 90%)
@@ -145,7 +146,7 @@ void loop() {
     }
 
   }
-
+  //maxCurrent = analogRead(analogCurrentPin);
   delay(20);
 }
 
@@ -174,10 +175,10 @@ void beep(int millis){
 void calibrate(){
 // Calibrate device to 100% with shorted electrodes
 
-	inputVoltage = analogRead(analogInPin)*oneBitEqivalentVoltage;
+	inputVoltage = analogRead(analogInPin)*ONE_BIT_VOLTAGE;
 
 	for (int i=0;i<100;i++){
-		inputVoltage = (3*inputVoltage + analogRead(analogInPin)*oneBitEqivalentVoltage)/4;
+		inputVoltage = (3*inputVoltage + analogRead(analogInPin)*ONE_BIT_VOLTAGE)/4;
 	}
 
 	EEPROM.put(eeAddress, inputVoltage);
@@ -193,13 +194,13 @@ void freq(unsigned long aFreq, float aPWM){
  * aFreq put *100, e.g. 10Hz = 1000
  * aPWM is duty cycle in percentage *10, e.g. 1% = 10
  */
-
+	cli();
 
 	uint16_t prescaler = 1;
 
 	ICR1  = 0xFFFF;
     //TCNT1 = 0x01FF;
-	TCNT1 = 0xFFFF;
+	TCNT1 = 0x0000;
 
 	//Set mode 15 (16bit) (Fast PWM - TOP OCR1A, non-inverting mode)
     TCCR1A = (0 << COM1A1) | (0 << COM1A0) | (1 << COM1B1) | (0 << COM1B0) | (1 << WGM11) | (1 << WGM10);
@@ -242,29 +243,25 @@ void freq(unsigned long aFreq, float aPWM){
     OCR1B = (aPWM/100) * OCR1A;
 
     // enable timer compare interrupt:
-    //TIMSK1 |= (1 << OCIE1A);
-
-	#ifdef SERIAL_DEBUG
-
-			Serial.println("freq->registers: ");
-			Serial.print("TCCR1A: ");
-			Serial.println(TCCR1A, BIN);
-			Serial.print("TCCR1B: ");
-			Serial.println(TCCR1B, BIN);
-			Serial.print("OCR1A : ");
-			Serial.println(OCR1A , BIN);
-			Serial.print("OCR1B : ");
-			Serial.println(OCR1B , BIN);
-
-	#endif
+    TIMSK1 |= (1 << OCIE1A);
+    //TIMSK1 != (1 << ICIE1);
+    sei();
 
 }
 
+ISR (TIMER1_COMPA_vect){
+//TODO
+  current = ONE_BIT_CURRENT * analogRead(analogCurrentPin);
+}
+
+
 void freqStop(){
+	//cli();
 	TCCR1A = 0;
     TCCR1B = 0;
     OCR1A=0;
     OCR1B=0;
+    //sei();
 }
 
 //Serial commands///////////////////////////////////////////////////////////////////////////
@@ -285,11 +282,7 @@ void serialEvent() {
     if (inChar == '\n') {
       stringComplete = true;
     }
-/*
-    if (inChar == '@') {
-      memComplete = true;
-    }
-*/
+
   }
 
 }
@@ -321,11 +314,7 @@ int executeCmd(String cmdLine){
 	getParams(cmdLine);
 
 
-    if ( param[0]=="mem" ) {
-// Upload terapy to EEPROM
-
-
-    } else if (param[0].charAt(0)=='#') {
+	if (param[0].charAt(0)=='#') {
 // Comment
     	;
 
@@ -334,10 +323,11 @@ int executeCmd(String cmdLine){
 // Emptyline
 
     	;
-    } else if (param[0]=="current"){
+    } else if (param[0]=="curr"){
 // Start current measurement
-//TODO: timer1 break jump
-    	currentMesurement=1;
+
+    	Serial.println(current );
+    	Serial.println("OK");
 
 
     } else if (param[0]=="sfreq"){
