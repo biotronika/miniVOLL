@@ -250,18 +250,17 @@ void freq(unsigned long aFreq, float aPWM){
 }
 
 ISR (TIMER1_COMPA_vect){
-//TODO
   current = ONE_BIT_CURRENT * analogRead(analogCurrentPin);
 }
 
 
 void freqStop(){
-	//cli();
+	cli();
 	TCCR1A = 0;
     TCCR1B = 0;
     OCR1A=0;
     OCR1B=0;
-    //sei();
+    sei();
 }
 
 //Serial commands///////////////////////////////////////////////////////////////////////////
