@@ -3,8 +3,8 @@
  *
  * For more see: biotronics.eu
  *
- * Calibrate by pressing button in the pen electrode or short the electrodes when connect USB cable (power on)
- *
+ * Calibrate by pressing button in the pen electrode or short
+ * the electrodes when connect USB cable (powering on).
  */
 
 #include <Arduino.h>      // For eclipse IDE only
@@ -12,26 +12,33 @@
 
 //#define SERIAL_DEBUG
 
+#define SOFT_VER "2019-05-11"
+#define HRDW_VER "NANO 1.1"
 
-#define SOFT_VER "2019-05-10"
-#define HRDW_VER "NANO 1.0"
-
-#define analogInPin	A3		// Analog input from optocoupler from EAV circuit
-#define buzzerPin	6		// Signal buzzer
-#define analogCurrentPin A5 // Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
-#define electrodePin 10  	// Active electrode signal (II-3)
-#define polarizationPin 2	// Polarization relay pin
+#define analogInPin	A3						// Analog input from optocoupler from EAV circuit
+#define buzzerPin	6						// Signal buzzer
+#define analogCurrentPin A5 				// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
+#define electrodePin 10  					// Active electrode EAP signal (II-3)
+#define polarizationPin 2					// Polarization relay pin
 
 #define ONE_BIT_VOLTAGE 3.2258 				// 1023bits = 3.3V => 1bit = 3.2258mV
-#define ONE_BIT_CURRENT 9.775 				// 1023bits 330R with REF=3.3V => 1bit = 9.775uA
+#define ONE_BIT_CURRENT 9.775 				// 1023bits = 3.3V on 330R => 1bit = 9.775uA
 #define MAX_INPUT_THRESHOLD_VOLTAGE 2500 	// Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
 #define MIN_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of 0%
 
-#define eeAddress 0			//  Address of calibration value
+#define DEF_FREQ 783						// Start pulse frequency, default 7.83Hz (1.00Hz - 1kHz)
+#define DEF_PWM 5.0							// Start duty cycle, default 2% (0.0% - 100.0%)
+
+#define eeAddress 0							//  Address of calibration value
 
 #define WELCOME_SCR "bioZAP interpreter welcome! See http://biotronics.eu"
-#define MAX_CMD_PARAMS 3    // Count of command parameters
+#define MAX_CMD_PARAMS 3    				// Count of command parameters
 
+#define MODE_EAP 0							// Mode electro(acu)punture (EAP)
+#define MODE_EAV 1							// Mode Voll's electroacupuncture (EAV)
+#define MODE_VEG 2							// Mode vegatest
+
+int mode = MODE_EAP;						// Default mode
 long inputVoltage = 0;
 boolean started = false;
 int outputValue = 0;
@@ -39,12 +46,12 @@ int outputValue = 0;
 int maximumInputVoltage = MAX_INPUT_THRESHOLD_VOLTAGE;
 
 
-String inputString = "";                // A string to hold incoming serial data
-boolean stringComplete = false;         // whether the string is complete
+String inputString = "";                // Buffer string to hold incoming serial data
+boolean stringComplete = false;         // Whether the string is complete
 String param[MAX_CMD_PARAMS];           // param[0] = cmd name
-float pwm = 1.0; 					    // Duty cycle, default 1% (0.0% - 100.0%)
-boolean currentMesurement = false;
-volatile unsigned int current = 0;
+float pwm = DEF_PWM; 					// Duty cycle
+//boolean currentMesurement = false;
+volatile unsigned int current = 0;		// Current measurement in therapy circuit
 
 void startCmd();
 void saveCmd();
@@ -56,23 +63,25 @@ void getParams(String &inputString);
 int executeCmd(String cmdLine);
 
 void setup() {
+
+	// Pin configuration
 	pinMode(buzzerPin, OUTPUT);
 	pinMode(electrodePin, OUTPUT);
 	pinMode(polarizationPin, OUTPUT);
 
-
-	analogReference(INTERNAL); //Change to 3.3V External Arduino NANO reference
+	// Change to 3.3V External Arduino NANO reference
+	analogReference(INTERNAL);
 
 	Serial.begin(115000);
 
 	beep(100);
 
 	if (analogRead(analogInPin)*ONE_BIT_VOLTAGE > maximumInputVoltage) {
-		//New calibration
+		// New calibration
 		calibrate();
 	} else {
 
-		//Set 100% voltage value
+		// Set 100% voltage value from last calibration value
 		EEPROM.get(eeAddress, maximumInputVoltage);
 	}
 
@@ -83,22 +92,13 @@ void setup() {
     Serial.println(SOFT_VER);
     Serial.println(">");
 
-	//Serial.println(100);
-	//Serial.println(0);
-
-    //cli();  // disable global interrupts
-
-    //freq(78,10);
-
-    //sei();  // enable global interrupts:
-
-    //while(1);
+    // Start therapy circuit with default parameters
+    freq(DEF_FREQ, pwm);
 }
 
 void loop() {
 
-  //inputVoltage = analogRead(analogInPin)*oneBitEqivalentVoltage;
-
+  //Serial command
   if (stringComplete) {
 
 	executeCmd(inputString);
@@ -110,6 +110,7 @@ void loop() {
 
   }
 
+  // Measure and filter for therapy circuit
   // Use 8 samples instead of one
   inputVoltage = 0;
   for(int i=0; i<8; i++){
@@ -118,22 +119,35 @@ void loop() {
   inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 
 
-  if (inputVoltage>MIN_INPUT_THRESHOLD_VOLTAGE && !started && inputVoltage < maximumInputVoltage){
+  // Start therapy circuit trigger
+  if ( 	(mode == MODE_VEG || mode == MODE_EAV)
+		 && inputVoltage>MIN_INPUT_THRESHOLD_VOLTAGE
+		 && !started
+		 && inputVoltage < maximumInputVoltage){
+
     started = true;
     startCmd();
     delay(20);
+
   }
 
+  // Button press detection in therapy circuit
   if(!started && inputVoltage > maximumInputVoltage){
 	  btnCmd();
 	  delay(20);
   }
 
+  // End of measure detection in therapy circuit
   if (inputVoltage<=MIN_INPUT_THRESHOLD_VOLTAGE){
     started=false;
     delay(100);
   }
-  if (started) {
+
+
+  // Sent value to serial in therapy circuit
+  if (	(mode == MODE_VEG || mode == MODE_EAV)
+		 && started) {
+
 	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
     outputValue = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
     delay(20);
@@ -146,14 +160,14 @@ void loop() {
     }
 
   }
+
+
   //maxCurrent = analogRead(analogCurrentPin);
-  delay(20);
+  //delay(20);
 }
 
 void startCmd(){
     Serial.println(":start");
-    //Serial.println(100);
-    //for (int i=0; i<100; i++) Serial.println(0);
 }
 
 void saveCmd(){
@@ -250,7 +264,8 @@ void freq(unsigned long aFreq, float aPWM){
 }
 
 ISR (TIMER1_COMPA_vect){
-  current = ONE_BIT_CURRENT * analogRead(analogCurrentPin);
+  current = ONE_BIT_CURRENT * analogRead(analogCurrentPin)* 1.25;
+  //1.25 is correction of reverse current of Zener diode ~100uA on 330R
 }
 
 
@@ -317,6 +332,20 @@ int executeCmd(String cmdLine){
 // Comment
     	;
 
+    } else if (param[0]=="vegatest"){
+// Mode veagatest
+    	mode = MODE_VEG;
+    	Serial.println("OK");
+
+    } else if (param[0]=="eav"){
+// Mode EAV
+		mode = MODE_EAV;
+		Serial.println("OK");
+
+    } else if (param[0]=="eap"){
+// Mode electropuncture
+		mode = MODE_EAP;
+		Serial.println("OK");
 
     } else if (param[0]==""){
 // Emptyline
