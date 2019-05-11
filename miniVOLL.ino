@@ -56,11 +56,11 @@ volatile unsigned int current = 0;		// Current measurement in therapy circuit
 void startCmd();
 void saveCmd();
 void btnCmd();
-void beep(int millis);
+void beep( int millis );
 void calibrate();
-void freq(unsigned long aFreq, float aPWM);
-void getParams(String &inputString);
-int executeCmd(String cmdLine);
+void freq( unsigned long aFreq, float aPWM );
+void getParams( String &inputString );
+int executeCmd( String cmdLine );
 
 void setup() {
 
@@ -70,9 +70,9 @@ void setup() {
 	pinMode(polarizationPin, OUTPUT);
 
 	// Change to 3.3V External Arduino NANO reference
-	analogReference(INTERNAL);
+	analogReference( INTERNAL );
 
-	Serial.begin(115000);
+	Serial.begin( 115000 );
 
 	beep(100);
 
@@ -93,13 +93,13 @@ void setup() {
     Serial.println(">");
 
     // Start therapy circuit with default parameters
-    freq(DEF_FREQ, pwm);
+    freq( DEF_FREQ, pwm );
 }
 
 void loop() {
 
   //Serial command
-  if (stringComplete) {
+  if ( stringComplete ) {
 
 	executeCmd(inputString);
 	Serial.print('>'); //Cursor for new command
@@ -113,7 +113,7 @@ void loop() {
   // Measure and filter for therapy circuit
   // Use 8 samples instead of one
   inputVoltage = 0;
-  for(int i=0; i<8; i++){
+  for( int i=0; i<8; i++ ){
 	  inputVoltage +=analogRead(analogInPin);
   }
   inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
@@ -121,7 +121,7 @@ void loop() {
 
   // Start therapy circuit trigger
   if ( 	(mode == MODE_VEG || mode == MODE_EAV)
-		 && inputVoltage>MIN_INPUT_THRESHOLD_VOLTAGE
+		 && inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE
 		 && !started
 		 && inputVoltage < maximumInputVoltage){
 
@@ -132,13 +132,13 @@ void loop() {
   }
 
   // Button press detection in therapy circuit
-  if(!started && inputVoltage > maximumInputVoltage){
+  if( !started && inputVoltage > maximumInputVoltage ){
 	  btnCmd();
 	  delay(20);
   }
 
   // End of measure detection in therapy circuit
-  if (inputVoltage<=MIN_INPUT_THRESHOLD_VOLTAGE){
+  if ( inputVoltage <= MIN_INPUT_THRESHOLD_VOLTAGE ){
     started=false;
     delay(100);
   }
@@ -146,7 +146,7 @@ void loop() {
 
   // Sent value to serial in therapy circuit
   if (	(mode == MODE_VEG || mode == MODE_EAV)
-		 && started) {
+		 && started ) {
 
 	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
     outputValue = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
@@ -206,7 +206,7 @@ void calibrate(){
 void freq(unsigned long aFreq, float aPWM){
 /* Function generating signal on pin PD10
  * aFreq put *100, e.g. 10Hz = 1000
- * aPWM is duty cycle in percentage *10, e.g. 1% = 10
+ * aPWM is duty cycle e.g. 1% = 1.0
  */
 	cli();
 
@@ -250,13 +250,13 @@ void freq(unsigned long aFreq, float aPWM){
 
 
 
-    //Set the nearest applicable frequency
-    OCR1A = F_CPU /( prescaler * (aFreq / 100.0))-1; //31250 //2Hz
+    // Set the nearest applicable frequency
+    OCR1A = F_CPU / ( prescaler * (aFreq / 100.0) ) - 1;
 
-    //Set PWM duty cycle
+    // Set PWM duty cycle
     OCR1B = (aPWM/100) * OCR1A;
 
-    // enable timer compare interrupt:
+    // Enable timer compare interrupt:
     TIMSK1 |= (1 << OCIE1A);
     //TIMSK1 != (1 << ICIE1);
     sei();
@@ -265,16 +265,19 @@ void freq(unsigned long aFreq, float aPWM){
 
 ISR (TIMER1_COMPA_vect){
   current = ONE_BIT_CURRENT * analogRead(analogCurrentPin)* 1.25;
-  //1.25 is correction of reverse current of Zener diode ~100uA on 330R
+  //1.25 is correction of reverse current on Zener diode ~100uA on 330R
 }
 
 
 void freqStop(){
+
 	cli();
+
 	TCCR1A = 0;
     TCCR1B = 0;
-    OCR1A=0;
-    OCR1B=0;
+    OCR1A = 0;
+    OCR1B = 0;
+
     sei();
 }
 
@@ -283,16 +286,18 @@ void freqStop(){
 void serialEvent() {
 
   while (Serial.available()) {
-    // get the new byte:
+
+	// Get the new byte:
     char inChar = (char)Serial.read();
-    // add it to the inputString:
+
+    // Add it to the inputString:
     if (inChar!='\r'){
       inputString += inChar;
     }
 
     Serial.print(inChar); //echo
 
-    // if the incoming character is a newline, set a flag
+    // If the incoming character is a newline, set a flag complete
     if (inChar == '\n') {
       stringComplete = true;
     }
@@ -305,7 +310,8 @@ void getParams(String &inputString){
   for (int i=0; i<MAX_CMD_PARAMS; i++) param[i]="";
 
   int from =0;
-  int to =0;
+  int to = 0;
+
   for (int i=0; i<MAX_CMD_PARAMS; i++){
     to = inputString.indexOf(' ',from); //Find SPACE
 
@@ -330,20 +336,24 @@ int executeCmd(String cmdLine){
 
 	if (param[0].charAt(0)=='#') {
 // Comment
+
     	;
 
     } else if (param[0]=="vegatest"){
 // Mode veagatest
+
     	mode = MODE_VEG;
     	Serial.println("OK");
 
     } else if (param[0]=="eav"){
 // Mode EAV
+
 		mode = MODE_EAV;
 		Serial.println("OK");
 
     } else if (param[0]=="eap"){
 // Mode electropuncture
+
 		mode = MODE_EAP;
 		Serial.println("OK");
 
@@ -360,6 +370,7 @@ int executeCmd(String cmdLine){
 
     } else if (param[0]=="sfreq"){
 // Stop freq function
+
     	freqStop();
     	Serial.println("OK");
 
