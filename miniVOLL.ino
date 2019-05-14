@@ -54,9 +54,6 @@ String param[MAX_CMD_PARAMS];           // param[0] = cmd name
 float pwm = DEF_PWM; 					// Duty cycle
 volatile unsigned int current = 0;		// Current measurement in therapy circuit
 
-void startCmd();
-void saveCmd();
-void btnCmd();
 void beep( int millis );
 void calibrate();
 void freq( unsigned long freq, float pwm );
@@ -113,87 +110,96 @@ void loop() {
 
   }
 
-  // Measurement and filter for therapy circuit
-  // Use 8 samples instead of one
-  inputVoltage = 0;
-  for( int i=0; i<8; i++ ){
-	  inputVoltage +=analogRead(analogInPin);
+  if ( mode != MODE_EAP ) {
+
+	  // Measurement and filter for therapy circuit
+	  // Use 8 samples instead of one
+	  inputVoltage = 0;
+	  for( int i=0; i<8; i++ ){
+		  inputVoltage +=analogRead(analogInPin);
+	  }
+	  inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
+
   }
-  inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 
 
-  // Start measure of diagnose or therapy circuit
-  if ( 	(
-		  ( current >= MIN_INPUT_THRESHOLD_CURRENT) ||	//EAP mode case
-		  ( inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE && inputVoltage < maximumInputVoltage ) // EAV & VEG mode
-		) && !started ) {
+  // Start measure of diagnose circuit
+  if ( mode != MODE_EAP &&
+		inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE &&
+		inputVoltage < maximumInputVoltage  &&
+		!started ) {
 
-    started = true;
-    startCmd();
-    //delay(20);
+	  	  started = true;
+	  	  Serial.println(":vstart");
+  }
 
+  // Start measure of therapy circuit
+  if ( mode == MODE_EAP && current >= MIN_INPUT_THRESHOLD_CURRENT  && !started  ) {
+
+	      started = true;
+	      Serial.println(":cstart");
   }
 
   // Button press detection in therapy circuit
-  if( mode != MODE_EAP && !started && inputVoltage > maximumInputVoltage ){
-	  btnCmd();
-	  delay(100);
+  if ( mode != MODE_EAP && !started && inputVoltage > maximumInputVoltage ){
+	  	  Serial.println(":btn");
+	  	  delay(100);
   }
 
   // End of measure detection in therapy circuit
   if ( mode != MODE_EAP && inputVoltage <= MIN_INPUT_THRESHOLD_VOLTAGE ){
-    started=false;
-    delay(100);
+	  	  started=false;
+	  	  delay(100);
   }
 
-
   // Sent value to serial in diagnose circuit
-  if (	(mode == MODE_VEG || mode == MODE_EAV) && started ) {
+  if ( mode != MODE_EAP  && started ) {
 
 	if ( inputVoltage > maximumInputVoltage ) inputVoltage = maximumInputVoltage;
     outputEAVPrecentage = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
-    //delay(20);
 
     //Check pressed button (more then 95%)
     if ( outputEAVPrecentage > 950 ) {
-    	saveCmd();
-    	delay(100);
+
+    		Serial.println(":save");
+    		delay(100);
+
     } else {
-    	Serial.println( outputEAVPrecentage );
-    	delay(20);
+
+    		Serial.print(":v");
+    		Serial.println( outputEAVPrecentage );
+    		delay(20);
+
     }
 
   }
 
+
+
   // Sent value to serial in therapy circuit
   if ( (mode == MODE_EAP) && started){
-	    //Check pressed button (more then 90%)
-	if (current < MIN_INPUT_THRESHOLD_CURRENT) {
-	    started=false;
-	    delay(100);
-	} else {
-	    Serial.println(current);
-	    delay(20);
-	}
+
+	  //Check pressed button (more then 90%)
+	  if (current < MIN_INPUT_THRESHOLD_CURRENT) {
+
+		  started=false;
+		  delay(100);
+
+	  } else {
+
+		  Serial.print(":c");
+		  Serial.println(current);
+		  delay(20);
+
+	  }
+
   }
 
-}
 
-void startCmd(){
-	if (mode == MODE_EAP) {
-		Serial.println(":cstart");
-	} else {
-		Serial.println(":vstart");
-	}
-}
 
-void saveCmd(){
-	Serial.println(":save");
-}
+} //loop
 
-void btnCmd(){
-	Serial.println(":btn");
-}
+
 
 void beep(int millis){
 
@@ -389,6 +395,14 @@ int executeCmd(String cmdLine){
 
     	;
 
+    } else if (param[0]=="mode"){
+// Show current mode
+    	switch (mode) {
+			case MODE_EAP :	Serial.println("eap"); break;
+			case MODE_EAV : Serial.println("eav"); break;
+			case MODE_VEG : Serial.println("vegatest"); break;
+    	}
+		//Serial.println("OK");
 
     } else if (param[0]=="sfreq"){
 // Stop freq function
