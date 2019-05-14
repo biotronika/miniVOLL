@@ -40,7 +40,7 @@
 #define MODE_EAV 1							// Mode Voll's electroacupuncture (EAV)
 #define MODE_VEG 2							// Mode vegatest
 
-int mode = MODE_EAP;						// Default mode
+volatile int mode = MODE_EAP;						// Default mode
 long inputVoltage = 0;
 boolean started = false;
 int outputEAVPrecentage = 0;
@@ -53,12 +53,15 @@ boolean stringComplete = false;         // Whether the string is complete
 String param[MAX_CMD_PARAMS];           // param[0] = cmd name
 float pwm = DEF_PWM; 					// Duty cycle
 volatile unsigned int current = 0;		// Current measurement in therapy circuit
+boolean lastPromptSign = true;			// What kind of char was send recently
 
 void beep( int millis );
 void calibrate();
 void freq( unsigned long freq, float pwm );
 void getParams( String &inputString );
 int executeCmd( String cmdLine );
+void checkPrompt ();
+
 
 void setup() {
 
@@ -91,6 +94,7 @@ void setup() {
     Serial.print(" ");
     Serial.println(SOFT_VER);
     Serial.println(">");
+    lastPromptSign=true;
 
     // Start therapy circuit with default parameters
     freq( DEF_FREQ, pwm );
@@ -102,7 +106,10 @@ void loop() {
   if ( stringComplete ) {
 
 	executeCmd(inputString);
+	checkPrompt();
 	Serial.print('>'); //Cursor for new command
+	lastPromptSign=true;
+
 
 	//Clear command string
 	inputString = "";
@@ -130,6 +137,7 @@ void loop() {
 		!started ) {
 
 	  	  started = true;
+	  	  checkPrompt();
 	  	  Serial.println(":vstart");
   }
 
@@ -137,11 +145,14 @@ void loop() {
   if ( mode == MODE_EAP && current >= MIN_INPUT_THRESHOLD_CURRENT  && !started  ) {
 
 	      started = true;
+	      checkPrompt();
 	      Serial.println(":cstart");
+
   }
 
   // Button press detection in therapy circuit
   if ( mode != MODE_EAP && !started && inputVoltage > maximumInputVoltage ){
+	  	  checkPrompt();
 	  	  Serial.println(":btn");
 	  	  delay(100);
   }
@@ -161,11 +172,12 @@ void loop() {
     //Check pressed button (more then 95%)
     if ( outputEAVPrecentage > 950 ) {
 
+    		checkPrompt();
     		Serial.println(":save");
     		delay(100);
 
     } else {
-
+    		checkPrompt();
     		Serial.print(":v");
     		Serial.println( outputEAVPrecentage );
     		delay(20);
@@ -199,6 +211,12 @@ void loop() {
 
 } //loop
 
+void checkPrompt (){
+
+	if (lastPromptSign) Serial.println();
+	lastPromptSign=false;
+
+}
 
 
 void beep(int millis){
@@ -288,16 +306,17 @@ void freq(unsigned long freq, float pwm){
 
 ISR (TIMER1_COMPA_vect){
 // Measure of current in EAP during impulse.
+	if (mode == MODE_EAP) {
+		unsigned int ui  = analogRead(analogCurrentPin);
+					 ui += analogRead(analogCurrentPin);
+					 ui += analogRead(analogCurrentPin);
+					 ui += analogRead(analogCurrentPin);
+					 ui = ui >> 2; //Filter: use 4 samples instead of one
 
-	unsigned int ui  = analogRead(analogCurrentPin);
-				 ui += analogRead(analogCurrentPin);
-				 ui += analogRead(analogCurrentPin);
-				 ui += analogRead(analogCurrentPin);
-				 ui = ui >> 2; //Filter: use 4 samples instead of one
-
-	current = ONE_BIT_CURRENT * ui * 1.25;
-    //1.25 is correction of reverse current on Zener diode ~100uA on 330R
+		current = ONE_BIT_CURRENT * ui * 1.25;
+		//1.25 is correction of reverse current on Zener diode ~100uA on 330R
 //TODO: May I should change 330R to 0R, and correction factor to 1.0 - to consider that!
+	}
 
 }
 
