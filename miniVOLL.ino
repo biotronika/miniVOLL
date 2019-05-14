@@ -12,7 +12,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-05-11"
+#define SOFT_VER "2019-05-14"
 #define HRDW_VER "NANO 1.1"
 
 #define analogInPin	A3						// Analog input from optocoupler from EAV circuit
@@ -24,10 +24,12 @@
 #define ONE_BIT_VOLTAGE 3.2258 				// 1023bits = 3.3V => 1bit = 3.2258mV
 #define ONE_BIT_CURRENT 9.775 				// 1023bits = 3.3V on 330R => 1bit = 9.775uA
 #define MAX_INPUT_THRESHOLD_VOLTAGE 2500 	// Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
-#define MIN_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of 0%
+#define MIN_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of vstart: communicate, default 900 mV
+//#define MAX_INPUT_THRESHOLD_CURRENT 10000 	// default 10mA
+#define MIN_INPUT_THRESHOLD_CURRENT 15 		// Threshold of cstart: communicate, default 15uA
 
-#define DEF_FREQ 783						// Start pulse frequency, default 7.83Hz (1.00Hz - 1kHz)
-#define DEF_PWM 5.0							// Start duty cycle, default 2% (0.0% - 100.0%)
+#define DEF_FREQ 1000						// Start pulse frequency, default 10Hz (1.00Hz - 1kHz)
+#define DEF_PWM 5.0							// Start duty cycle, default 5% (0.0% - 100.0%)
 
 #define eeAddress 0							//  Address of calibration value
 
@@ -41,7 +43,7 @@
 int mode = MODE_EAP;						// Default mode
 long inputVoltage = 0;
 boolean started = false;
-int outputValue = 0;
+int outputEAVPrecentage = 0;
 
 int maximumInputVoltage = MAX_INPUT_THRESHOLD_VOLTAGE;
 
@@ -50,7 +52,6 @@ String inputString = "";                // Buffer string to hold incoming serial
 boolean stringComplete = false;         // Whether the string is complete
 String param[MAX_CMD_PARAMS];           // param[0] = cmd name
 float pwm = DEF_PWM; 					// Duty cycle
-//boolean currentMesurement = false;
 volatile unsigned int current = 0;		// Current measurement in therapy circuit
 
 void startCmd();
@@ -58,7 +59,7 @@ void saveCmd();
 void btnCmd();
 void beep( int millis );
 void calibrate();
-void freq( unsigned long aFreq, float aPWM );
+void freq( unsigned long freq, float pwm );
 void getParams( String &inputString );
 int executeCmd( String cmdLine );
 
@@ -77,8 +78,10 @@ void setup() {
 	beep(100);
 
 	if (analogRead(analogInPin)*ONE_BIT_VOLTAGE > maximumInputVoltage) {
+
 		// New calibration
 		calibrate();
+
 	} else {
 
 		// Set 100% voltage value from last calibration value
@@ -110,7 +113,7 @@ void loop() {
 
   }
 
-  // Measure and filter for therapy circuit
+  // Measurement and filter for therapy circuit
   // Use 8 samples instead of one
   inputVoltage = 0;
   for( int i=0; i<8; i++ ){
@@ -119,55 +122,69 @@ void loop() {
   inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 
 
-  // Start therapy circuit trigger
-  if ( 	(mode == MODE_VEG || mode == MODE_EAV)
-		 && inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE
-		 && !started
-		 && inputVoltage < maximumInputVoltage){
+  // Start measure of diagnose or therapy circuit
+  if ( 	(
+		  ( current >= MIN_INPUT_THRESHOLD_CURRENT) ||	//EAP mode case
+		  ( inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE && inputVoltage < maximumInputVoltage ) // EAV & VEG mode
+		) && !started ) {
 
     started = true;
     startCmd();
-    delay(20);
+    //delay(20);
 
   }
 
   // Button press detection in therapy circuit
-  if( !started && inputVoltage > maximumInputVoltage ){
+  if( mode != MODE_EAP && !started && inputVoltage > maximumInputVoltage ){
 	  btnCmd();
-	  delay(20);
+	  delay(100);
   }
 
   // End of measure detection in therapy circuit
-  if ( inputVoltage <= MIN_INPUT_THRESHOLD_VOLTAGE ){
+  if ( mode != MODE_EAP && inputVoltage <= MIN_INPUT_THRESHOLD_VOLTAGE ){
     started=false;
     delay(100);
   }
 
 
-  // Sent value to serial in therapy circuit
-  if (	(mode == MODE_VEG || mode == MODE_EAV)
-		 && started ) {
+  // Sent value to serial in diagnose circuit
+  if (	(mode == MODE_VEG || mode == MODE_EAV) && started ) {
 
-	if (inputVoltage > maximumInputVoltage) inputVoltage = maximumInputVoltage;
-    outputValue = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
-    delay(20);
+	if ( inputVoltage > maximumInputVoltage ) inputVoltage = maximumInputVoltage;
+    outputEAVPrecentage = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
+    //delay(20);
 
-    //Check pressed button (more then 90%)
-    if (outputValue>900) {
+    //Check pressed button (more then 95%)
+    if ( outputEAVPrecentage > 950 ) {
     	saveCmd();
+    	delay(100);
     } else {
-    	Serial.println(outputValue);
+    	Serial.println( outputEAVPrecentage );
+    	delay(20);
     }
 
   }
 
+  // Sent value to serial in therapy circuit
+  if ( (mode == MODE_EAP) && started){
+	    //Check pressed button (more then 90%)
+	if (current < MIN_INPUT_THRESHOLD_CURRENT) {
+	    started=false;
+	    delay(100);
+	} else {
+	    Serial.println(current);
+	    delay(20);
+	}
+  }
 
-  //maxCurrent = analogRead(analogCurrentPin);
-  //delay(20);
 }
 
 void startCmd(){
-    Serial.println(":start");
+	if (mode == MODE_EAP) {
+		Serial.println(":cstart");
+	} else {
+		Serial.println(":vstart");
+	}
 }
 
 void saveCmd(){
@@ -187,7 +204,7 @@ void beep(int millis){
 }
 
 void calibrate(){
-// Calibrate device to 100% with shorted electrodes
+// Calibrate device to 100% in EAV mode with shorted electrodes
 
 	inputVoltage = analogRead(analogInPin)*ONE_BIT_VOLTAGE;
 
@@ -203,10 +220,10 @@ void calibrate(){
 
 }
 
-void freq(unsigned long aFreq, float aPWM){
+void freq(unsigned long freq, float pwm){
 /* Function generating signal on pin PD10
- * aFreq put *100, e.g. 10Hz = 1000
- * aPWM is duty cycle e.g. 1% = 1.0
+ * freq put *100, e.g. 10Hz = 1000
+ * pwm is duty cycle e.g. 1% = 1.0
  */
 	cli();
 
@@ -221,22 +238,22 @@ void freq(unsigned long aFreq, float aPWM){
 
 
     // Choose the best prescaler for the frequency
-    if (aFreq < 100) {
+    if (freq < 100) {
 
     	prescaler = 1024;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (1 << CS11)   | (1 << CS10);
 
-    } else if (aFreq < 400){
+    } else if (freq < 400){
 
     	prescaler = 256;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (0 << CS11)   | (0 << CS10);
 
-    } else if (aFreq < 3100) {
+    } else if (freq < 3100) {
 
     	prescaler = 64;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (0 << CS12)   | (1 << CS11)   | (1 << CS10);
 
-    } else if (aFreq < 25000) {
+    } else if (freq < 25000) {
 
     	prescaler = 8;
     	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (0 << CS12)   | (1 << CS11)   | (0 << CS10);
@@ -251,21 +268,31 @@ void freq(unsigned long aFreq, float aPWM){
 
 
     // Set the nearest applicable frequency
-    OCR1A = F_CPU / ( prescaler * (aFreq / 100.0) ) - 1;
+    OCR1A = F_CPU / ( prescaler * (freq / 100.0) ) - 1;
 
     // Set PWM duty cycle
-    OCR1B = (aPWM/100) * OCR1A;
+    OCR1B = (pwm/100) * OCR1A;
 
     // Enable timer compare interrupt:
     TIMSK1 |= (1 << OCIE1A);
-    //TIMSK1 != (1 << ICIE1);
+
     sei();
 
 }
 
 ISR (TIMER1_COMPA_vect){
-  current = ONE_BIT_CURRENT * analogRead(analogCurrentPin)* 1.25;
-  //1.25 is correction of reverse current on Zener diode ~100uA on 330R
+// Measure of current in EAP during impulse.
+
+	unsigned int ui  = analogRead(analogCurrentPin);
+				 ui += analogRead(analogCurrentPin);
+				 ui += analogRead(analogCurrentPin);
+				 ui += analogRead(analogCurrentPin);
+				 ui = ui >> 2; //Filter: use 4 samples instead of one
+
+	current = ONE_BIT_CURRENT * ui * 1.25;
+    //1.25 is correction of reverse current on Zener diode ~100uA on 330R
+//TODO: May I should change 330R to 0R, and correction factor to 1.0 - to consider that!
+
 }
 
 
@@ -352,7 +379,7 @@ int executeCmd(String cmdLine){
 		Serial.println("OK");
 
     } else if (param[0]=="eap"){
-// Mode electropuncture
+// Mode electroacupuncture
 
 		mode = MODE_EAP;
 		Serial.println("OK");
@@ -361,11 +388,6 @@ int executeCmd(String cmdLine){
 // Emptyline
 
     	;
-    } else if (param[0]=="curr"){
-// Start current measurement
-
-    	Serial.println(current );
-    	Serial.println("OK");
 
 
     } else if (param[0]=="sfreq"){
