@@ -1,1 +1,1 @@
-See: https://biotronika.pl/node/189
+See: https://biotronics.eu/what-is-qiWELLNESS
