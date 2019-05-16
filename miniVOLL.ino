@@ -12,7 +12,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-05-14"
+#define SOFT_VER "2019-05-16"
 #define HRDW_VER "NANO 1.1"
 
 #define analogInPin	A3						// Analog input from optocoupler from EAV circuit
@@ -23,8 +23,10 @@
 
 #define ONE_BIT_VOLTAGE 3.2258 				// 1023bits = 3.3V => 1bit = 3.2258mV
 #define ONE_BIT_CURRENT 9.775 				// 1023bits = 3.3V on 330R => 1bit = 9.775uA
-#define MAX_INPUT_THRESHOLD_VOLTAGE 2500 	// Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
-#define MIN_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of vstart: communicate, default 900 mV
+#define MAX_EAV_INPUT_THRESHOLD_VOLTAGE 2500 	// Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
+#define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of estart: communicate, default 900 mV
+#define MAX_VEG_INPUT_THRESHOLD_VOLTAGE 1000 	// Is used for vegatest e.g.: 1000mV
+#define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart: communicate, default 300 mV
 //#define MAX_INPUT_THRESHOLD_CURRENT 10000 	// default 10mA
 #define MIN_INPUT_THRESHOLD_CURRENT 15 		// Threshold of cstart: communicate, default 15uA
 
@@ -45,7 +47,7 @@ long inputVoltage = 0;
 boolean started = false;
 int outputEAVPrecentage = 0;
 
-int maximumInputVoltage = MAX_INPUT_THRESHOLD_VOLTAGE;
+int maximumInputVoltage = MAX_EAV_INPUT_THRESHOLD_VOLTAGE;
 
 
 String inputString = "";                // Buffer string to hold incoming serial data
@@ -130,15 +132,26 @@ void loop() {
   }
 
 
-  // Start measure of diagnose circuit
-  if ( mode != MODE_EAP &&
-		inputVoltage > MIN_INPUT_THRESHOLD_VOLTAGE &&
-		inputVoltage < maximumInputVoltage  &&
+  // Start measure of vegatest (1.2V) diagnose circuit
+  if ( mode == MODE_VEG &&
+		inputVoltage > MIN_VEG_INPUT_THRESHOLD_VOLTAGE &&
+		inputVoltage < MAX_VEG_INPUT_THRESHOLD_VOLTAGE &&
 		!started ) {
 
 	  	  started = true;
 	  	  checkPrompt();
 	  	  Serial.println(":vstart");
+  }
+
+  // Start measure of eav (3.3V) diagnose circuit
+  if ( mode == MODE_EAV &&
+		inputVoltage > MIN_EAV_INPUT_THRESHOLD_VOLTAGE &&
+		inputVoltage < MAX_EAV_INPUT_THRESHOLD_VOLTAGE  &&
+		!started ) {
+
+	  	  started = true;
+	  	  checkPrompt();
+	  	  Serial.println(":estart");
   }
 
   // Start measure of therapy circuit
@@ -150,16 +163,33 @@ void loop() {
 
   }
 
-  // Button press detection in therapy circuit
-  if ( mode != MODE_EAP && !started && inputVoltage > maximumInputVoltage ){
+  // Button press detection in diagnose circuit
+  if ( mode == MODE_EAV && !started && inputVoltage > MAX_EAV_INPUT_THRESHOLD_VOLTAGE ){
 	  	  checkPrompt();
 	  	  Serial.println(":btn");
 	  	  delay(100);
   }
 
-  // End of measure detection in therapy circuit
-  if ( mode != MODE_EAP && inputVoltage <= MIN_INPUT_THRESHOLD_VOLTAGE ){
+  // Button press detection in diagnose circuit
+  if ( mode == MODE_VEG && !started && inputVoltage > MAX_VEG_INPUT_THRESHOLD_VOLTAGE ){
+	  	  checkPrompt();
+	  	  Serial.println(":btn");
+	  	  delay(100);
+  }
+
+  // End of measure detection in eav diagnose circuit
+  if ( mode == MODE_EAV && inputVoltage <= MIN_EAV_INPUT_THRESHOLD_VOLTAGE ){
 	  	  started=false;
+	  	  checkPrompt();
+	  	  Serial.println(":stop");
+	  	  delay(100);
+  }
+
+  // End of measure detection in vegatest diagnose circuit
+  if ( mode == MODE_VEG && inputVoltage <= MIN_VEG_INPUT_THRESHOLD_VOLTAGE ){
+	  	  started=false;
+	  	  checkPrompt();
+	  	  Serial.println(":stop");
 	  	  delay(100);
   }
 
@@ -167,7 +197,7 @@ void loop() {
   if ( mode != MODE_EAP  && started ) {
 
 	if ( inputVoltage > maximumInputVoltage ) inputVoltage = maximumInputVoltage;
-    outputEAVPrecentage = map(inputVoltage, MIN_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
+    outputEAVPrecentage = map(inputVoltage, MIN_EAV_INPUT_THRESHOLD_VOLTAGE , maximumInputVoltage, 0 , 1000);
 
     //Check pressed button (more then 95%)
     if ( outputEAVPrecentage > 950 ) {
@@ -187,7 +217,6 @@ void loop() {
   }
 
 
-
   // Sent value to serial in therapy circuit
   if ( (mode == MODE_EAP) && started){
 
@@ -195,10 +224,13 @@ void loop() {
 	  if (current < MIN_INPUT_THRESHOLD_CURRENT) {
 
 		  started=false;
+	  	  checkPrompt();
+	  	  Serial.println(":stop");
 		  delay(100);
 
 	  } else {
 
+		  checkPrompt();
 		  Serial.print(":c");
 		  Serial.println(current);
 		  delay(20);
