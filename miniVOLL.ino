@@ -12,7 +12,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-05-16 2"
+#define SOFT_VER "2019-05-17"
 #define HRDW_VER "NANO 1.1"
 
 #define analogInPin	A3						// Analog input from optocoupler from EAV circuit
