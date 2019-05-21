@@ -1,7 +1,7 @@
 ## miniVOLL & qiWELLNESS
 
 One Arduino ino file for beginners. Full functional software for miniVOLL and qiWELLNESS device. 
-See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Polish: https://biotronika.pl/what-is-qiWELLNESS 
+See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Polish:  [https://biotronika.pl](https://biotronika.pl/what-is-qiWELLNESS) 
 
 
 ### To compile code and upload using Arduino IDE:
@@ -18,45 +18,51 @@ See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Po
 
 
 ### Supported commands:
-* freq [freq] [pwm]  -  Generate impulse signal. [freq] - frequency (0.00Hz - 1kHz). Set multiple frequency by 100 e.g. 13.5Hz = 1350  [ |pwm] - duty cycle (0.0 - 100%) e.g. 5.5
-
-* sfreq  -  Stop generate signal. Change to DC
+* freq [freq] [pwm]  -  Generate impulse signal. [freq] - frequency (0.00Hz - 1kHz). Set multiple frequency by 100 e.g. 13.5Hz : freq 1350  
+pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: freq 1350 5.5
+* sfreq  -  Stop generate signal. Change signal to DC
  
-* pwm [pwm]  -  Duty cycle.  [pwm] - duty cycle (0.0 - 100%) e.g. 5.5
+* pwm [pwm]  -  Duty cycle.  [pwm] - duty cycle (0.0 - 100%) e.g. 5.5% : pwm 5.5
   
 * chp [0|1|~]  -  Change polarity
 
 * beep [ms]  -  Make by ms milliseconds signal.  
 
-* mode  -  change mode to (eap, eav, veg) or show current mode.
+* mode  -  show current mode:  eap, eav, veg
 
-* vegcalib  -  Calibration of Veagtest diagnose circuit. Electrode connect by 2.1V zener diode
+* eap  -  change to EAP mode.
+
+* eav  -  change to EAV mode.
+
+* veg  -  change to Vegatest mode.
+
+* vegcalib  -  Calibration of Veagtest diagnose circuit. Electrode connect by 2.1V Zener diode.
 
 * eavcalib  -  Calibration of EAV diagnose circuit.
 
 
 #### TODO:
 
-* pd [0|1]  The biological active points (BAP) auto detection by generating voice signal in Vegatest and EAV modes
+* pd [0|1]  -  Point Detection. The biological active points (BAP) auto detection by generating voice signal in Vegatest and EAV modes. 
 
 
 ### Supported communicats:
 
-* :btn - Button in active electrode was pressed in diagnose circuit
+* :btn - Button in active electrode was pressed in diagnose circuit.
 
-* :estart  -  Start of measure in EAV mode
+* :estart  -  Start of measure in EAV mode.
 
-* :vstart  -  Start of measure in Vegatest mode
+* :vstart  -  Start of measure in Vegatest mode.
 
-* :cstart  -  Start of current measure in EAP mode 
+* :cstart  -  Start of current measure in EAP mode. 
 
-* :stop  -  Stop of measure 
+* :stop  -  Stop of measure. 
 
-* :vxxxx  -  Voltage [V] was measured in Vegatest diagnose circuit 
+* :vxxxx  -  Voltage [V] was measured in Vegatest diagnose circuit. 
 
-* :exxxx  -  Voltage [V] was measured in EAV diagnose circuit
+* :exxxx  -  Voltage [V] was measured in EAV diagnose circuit.
 
-* :cxxxx yyyy  - Current [uA] and pwm [%] was measured in EAP therapy circuit
+* :cxxxx yyyy  - Current [uA] and pwm [%] was measured in EAP therapy circuit.
 
 
 

@@ -28,7 +28,7 @@ int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2500; // Is used for calibration purpose.
 int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000mV
 #define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
 
-#define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 500	// Above that value current be limited, default 500uA
+#define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 480// Above that value current be limited, default 480uA
 #define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 3 		// Threshold of cstart communicate, default 3uA
 
 #define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
@@ -426,7 +426,7 @@ ISR (TIMER1_COMPA_vect){
 		current = ONE_BIT_CURRENT * ui * 1.25;  //1.25 is correction of reverse current on Zener diode ~100uA on 330R
 
 		//Limit RMS current to MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT by changing duty cycle
-		if ( current * pwm / 100 > MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT) {
+		if ( current * set_pwm / 100 > MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT) {
 			pwm =  MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT / ( current / 100);
 		} else {
 			pwm = set_pwm;
