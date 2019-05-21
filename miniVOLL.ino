@@ -3,8 +3,6 @@
  *
  * For more see: biotronics.eu
  *
- * Calibrate by pressing button in the pen electrode or short
- * the electrodes when connect USB cable (powering on).
  */
 
 #include <Arduino.h>      // For eclipse IDE only
@@ -12,58 +10,66 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-05-17"
+#define SOFT_VER "2019-05-21"
 #define HRDW_VER "NANO 1.1"
 
-#define analogInPin	A3						// Analog input from optocoupler from EAV circuit
-#define buzzerPin	6						// Signal buzzer
-#define analogCurrentPin A5 				// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
-#define electrodePin 10  					// Active electrode EAP signal (II-3)
-#define polarizationPin 2					// Polarization relay pin
+#define analogInPin	A3							// Analog input from optocoupler from EAV circuit
+#define buzzerPin	6							// Signal buzzer
+#define analogCurrentPin A5 					// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
+#define electrodePin 10  						// Active electrode EAP signal (II-3)
+#define polarizationPin 2						// Polarization relay pin
 
-#define ONE_BIT_VOLTAGE 3.2258 				// 1023bits = 3.3V => 1bit = 3.2258mV
-#define ONE_BIT_CURRENT 9.775 				// 1023bits = 3.3V on 330R => 1bit = 9.775uA
+#define ONE_BIT_VOLTAGE 3.2258 					// 1023bits = 3.3V => 1bit = 3.2258mV
+#define ONE_BIT_CURRENT 9.775 					// 1023bits = 3.3V on 330R => 1bit = 9.775uA
+
 int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2500; // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
-#define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of estart: communicate, default 900 mV
+#define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of estart communicate, default 900 mV
+
 int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000mV
-#define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart: communicate, default 300 mV
+#define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
 
-#define MIN_INPUT_THRESHOLD_CURRENT 15 		// Threshold of cstart: communicate, default 15uA
+#define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 500	// Above that value current be limited, default 500uA
+#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 3 		// Threshold of cstart communicate, default 3uA
 
-#define DEF_FREQ 1000						// Start pulse frequency, default 10Hz (1.00Hz - 1kHz)
-#define DEF_PWM 5.0							// Start duty cycle, default 5% (0.0% - 100.0%)
+#define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
+#define START_PWM 5.0							// Start duty cycle, default 5%, range: 0.0% - 100.0%
 
-#define EAV_CALIBRATION_ADDRESS 0			// Address EEPROM of calibration value
+#define EAV_CALIBRATION_ADDRESS 0				// EEPROM address of calibration value
 #define VEG_CALIBRATION_ADDRESS 2
 
 #define WELCOME_SCR "bioZAP interpreter welcome! See http://biotronics.eu"
-#define MAX_CMD_PARAMS 3    				// Count of command parameters
+#define MAX_CMD_PARAMS 3    					// Number of command parameters
 
-#define MODE_EAP 0							// Mode electro(acu)punture (EAP)
-#define MODE_EAV 1							// Mode Voll's electroacupuncture (EAV)
-#define MODE_VEG 2							// Mode vegatest
+#define MODE_EAP 0								// Mode electro(acu)punture (EAP)
+#define MODE_EAV 1								// Mode Voll's electroacupuncture (EAV)
+#define MODE_VEG 2								// Mode vegatest
 
-volatile int mode = MODE_EAP;						// Default mode
+
+
+
+
+
+String inputString = "";                // Serial, buffer string to hold incoming serial data
+boolean stringComplete = false;         // Serial, whether the string is complete
+String param[MAX_CMD_PARAMS];           // Serial, all parameters of commands. param[0] = command
+
+float set_pwm = START_PWM;				// Duty cycle could be limited because of max range. set_pwm has saved original value.
+volatile float pwm = set_pwm; 			// Actual duty cycle of current
+volatile unsigned int current = 0;		// Current measurement in therapy circuit. Is used in interruption
+volatile int mode = MODE_EAP;			// Start default mode. Is used in interruption
 long inputVoltage = 0;
-boolean started = false;
+boolean started = false;				// Measurement is started (after reached threshold)
 int outputEAVPrecentage = 0;
 
-
-String inputString = "";                // Buffer string to hold incoming serial data
-boolean stringComplete = false;         // Whether the string is complete
-String param[MAX_CMD_PARAMS];           // param[0] = cmd name
-float pwm = DEF_PWM; 					// Duty cycle
-volatile unsigned int current = 0;		// Current measurement in therapy circuit
 boolean lastPromptSign = true;			// What kind of char was send recently
-//unsigned long startTime = millis();
-boolean buttonPressed = false;
+boolean buttonPressed = false;			// Is button in active electrode of diagnose circuit pressed
 
 void beep( int millis );
 void eavCalibrate();
 void vegCalibrate();
 void freq( unsigned long freq, float pwm );
 void getParams( String &inputString );
-int executeCmd( String cmdLine );
+int  executeCmd( String cmdLine );
 void checkPrompt ();
 long measureVoltage();
 
@@ -82,13 +88,15 @@ void setup() {
 
 	beep(100);
 
-	if (analogRead(analogInPin)*ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
+	//EAV startup calibration
+	if (analogRead(analogInPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
 
 		// New calibration
 		eavCalibrate();
 
 	} else {
 
+//TODO: remove it from that place
 		// Set 100% voltage value from last calibration value
 		EEPROM.get(EAV_CALIBRATION_ADDRESS, MAX_EAV_INPUT_THRESHOLD_VOLTAGE);
 	}
@@ -98,23 +106,26 @@ void setup() {
     Serial.print(HRDW_VER);
     Serial.print(" ");
     Serial.println(SOFT_VER);
+
+    // Prompt sign
     Serial.println(">");
     lastPromptSign=true;
 
     // Start therapy circuit with default parameters
-    freq( DEF_FREQ, pwm );
+    freq( START_FREQ, pwm );
 }
 
 void loop() {
 
-  //Serial command
+  //Serial command support
   if ( stringComplete ) {
 
 	executeCmd(inputString);
-	checkPrompt();
-	Serial.print('>'); //Cursor for new command
-	lastPromptSign=true;
 
+	//Prompt for new command
+	checkPrompt();
+	Serial.print('>');
+	lastPromptSign=true;
 
 	//Clear command string
 	inputString = "";
@@ -122,29 +133,36 @@ void loop() {
 
   }
 
+  //First voltage measurement in diagnose circuit for EAV and VEG modes
   if ( mode != MODE_EAP ) {
 
 	  inputVoltage = measureVoltage();
-
   }
 
 
   // Start measure of vegatest (1.2V) diagnose circuit
   if ( mode == MODE_VEG && inputVoltage > MIN_VEG_INPUT_THRESHOLD_VOLTAGE && !started ) {
 
-
+	  	  //Second measurement in VEG mode after the signal stabilizes
 		  delay(20);
 		  inputVoltage=measureVoltage();
 
 		  if ( (inputVoltage >= (MAX_VEG_INPUT_THRESHOLD_VOLTAGE * 0.95))  ){
-				if (!buttonPressed) {
-				  checkPrompt();
-				  Serial.println(":btn");
-				  buttonPressed=true;
-				  delay(100);
-				}
+
+			  //Anti multiple button communicate trigger
+			  if (!buttonPressed) {
+
+					buttonPressed=true;
+
+					checkPrompt();
+					Serial.println(":btn");
+
+					delay(100);
+			  }
 		  } else {
+
 			  started = true;
+
 			  checkPrompt();
 			  Serial.println(":vstart");
 		  }
@@ -153,31 +171,35 @@ void loop() {
   // Start measure of eav (3.3V) diagnose circuit
   if ( mode == MODE_EAV && 	inputVoltage > MIN_EAV_INPUT_THRESHOLD_VOLTAGE && !started ) {
 
-
+	  	  //Second measurement in EAV mode after the signal stabilizes
 	  	  delay(20);
 	  	  inputVoltage=measureVoltage();
 
 	  	  if ( (inputVoltage >= (MAX_EAV_INPUT_THRESHOLD_VOLTAGE * 0.95))  ){
-	  		    if (!buttonPressed) {
+	  		  if (!buttonPressed) {
+
+	  			  buttonPressed=true;
+
 	  		  	  checkPrompt();
 	  		  	  Serial.println(":btn");
-	  		  	  buttonPressed=true;
+
 	  		  	  delay(100);
-	  		    }
+	  		  }
 	  	  } else {
 
 	  		  started = true;
+
 	  	  	  checkPrompt();
 	  	  	  Serial.println(":estart");
 	  	  }
   }
 
 
-  // Start measure of therapy circuit
-  if ( mode == MODE_EAP && current >= MIN_INPUT_THRESHOLD_CURRENT  && !started  ) {
+  // Start measurement of therapy circuit
+  if ( mode == MODE_EAP && current >= MIN_EAP_OUTPUT_THRESHOLD_CURRENT  && !started  ) {
 
 	      started = true;
-	      //startTime = millis();
+
 	      checkPrompt();
 	      Serial.println(":cstart");
 
@@ -187,44 +209,54 @@ void loop() {
   // End of measure detection in eav diagnose circuit
   if ( mode == MODE_EAV && started && inputVoltage <= MIN_EAV_INPUT_THRESHOLD_VOLTAGE ){
 	  	  started=false;
+
 	  	  checkPrompt();
 	  	  Serial.println(":stop");
+
 	  	  delay(100);
   }
+
 
   // End of measure detection in vegatest diagnose circuit
   if ( mode == MODE_VEG && started && inputVoltage <= MIN_VEG_INPUT_THRESHOLD_VOLTAGE ){
 	  	  started=false;
+
 	  	  checkPrompt();
 	  	  Serial.println(":stop");
+
 	  	  delay(100);
   }
 
-  // Sent value to serial in diagnose circuit
+
+  // Sent value to serial in EAV diagnose circuit
   if ( mode == MODE_EAV  && started ) {
 
 	if ( inputVoltage > MAX_EAV_INPUT_THRESHOLD_VOLTAGE ) inputVoltage = MAX_EAV_INPUT_THRESHOLD_VOLTAGE;
     outputEAVPrecentage = map(inputVoltage, MIN_EAV_INPUT_THRESHOLD_VOLTAGE , MAX_EAV_INPUT_THRESHOLD_VOLTAGE, 0 , 1000);
 
-    		checkPrompt();
     		buttonPressed=false;
+
+    		checkPrompt();
     		Serial.print(":e");
     		Serial.println( outputEAVPrecentage );
-    		delay(20);
 
+    		delay(20);
   }
 
+
+  // Sent value to serial in VEG diagnose circuit
   if ( mode == MODE_VEG  && started ) {
 
 	if ( inputVoltage > MAX_VEG_INPUT_THRESHOLD_VOLTAGE ) inputVoltage = MAX_VEG_INPUT_THRESHOLD_VOLTAGE;
     outputEAVPrecentage = map(inputVoltage, MIN_VEG_INPUT_THRESHOLD_VOLTAGE , MAX_VEG_INPUT_THRESHOLD_VOLTAGE, 0 , 1000);
 
-    		checkPrompt();
     		buttonPressed=false;
+
+    		checkPrompt();
     		Serial.print(":v");
     		Serial.println( outputEAVPrecentage );
-    		delay(20);
 
+    		delay(20);
   }
 
 
@@ -232,22 +264,25 @@ void loop() {
   if ( (mode == MODE_EAP) && started){
 
 	  //Check pressed button (more then 90%)
-	  if (current < MIN_INPUT_THRESHOLD_CURRENT) {
+	  if (current < MIN_EAP_OUTPUT_THRESHOLD_CURRENT) {
 
 		  started=false;
+
 	  	  checkPrompt();
 	  	  Serial.println(":stop");
+
 		  delay(100);
 
 	  } else {
 
 		  checkPrompt();
 		  Serial.print(":c");
-		  Serial.println(current);
+		  Serial.print(current);   //Serial.println(current);
+		  Serial.print(" ");
+		  Serial.println(pwm,1);
+
 		  delay(20);
-
 	  }
-
   }
 
 
@@ -314,7 +349,6 @@ void vegCalibrate(){
 	beep(400);
 
 	inputVoltage =0;
-
 }
 
 
@@ -376,11 +410,12 @@ void freq(unsigned long freq, float pwm){
     TIMSK1 |= (1 << OCIE1A);
 
     sei();
-
 }
 
+
+// Measure of current in EAP during impulse (not RMS value).
 ISR (TIMER1_COMPA_vect){
-// Measure of current in EAP during impulse.
+
 	if (mode == MODE_EAP) {
 		unsigned int ui  = analogRead(analogCurrentPin);
 					 ui += analogRead(analogCurrentPin);
@@ -388,8 +423,15 @@ ISR (TIMER1_COMPA_vect){
 					 ui += analogRead(analogCurrentPin);
 					 ui = ui >> 2; //Filter: use 4 samples instead of one
 
-		current = ONE_BIT_CURRENT * ui * 1.25;
-		//1.25 is correction of reverse current on Zener diode ~100uA on 330R
+		current = ONE_BIT_CURRENT * ui * 1.25;  //1.25 is correction of reverse current on Zener diode ~100uA on 330R
+
+		//Limit RMS current to MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT by changing duty cycle
+		if ( current * pwm / 100 > MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT) {
+			pwm =  MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT / ( current / 100);
+		} else {
+			pwm = set_pwm;
+		}
+
 //TODO: May I should change 330R to 0R, and correction factor to 1.0 - to consider that!
 	}
 
@@ -422,7 +464,8 @@ void serialEvent() {
       inputString += inChar;
     }
 
-    Serial.print(inChar); //echo
+    // Echo
+    Serial.print(inChar);
 
     // If the incoming character is a newline, set a flag complete
     if (inChar == '\n') {
@@ -434,9 +477,10 @@ void serialEvent() {
 }
 
 void getParams(String &inputString){
+
   for (int i=0; i<MAX_CMD_PARAMS; i++) param[i]="";
 
-  int from =0;
+  int from = 0;
   int to = 0;
 
   for (int i=0; i<MAX_CMD_PARAMS; i++){
@@ -546,16 +590,27 @@ int executeCmd(String cmdLine){
 
 
     } else if (param[0]=="pwm"){
-// Change pwm duty cycle
-    	pwm =constrain(param[1].toFloat(), 0, 100);
-    	Serial.println("OK");
+// Change or show pwm duty cycle
+
+    	if (param[1] != "") {
+
+    		set_pwm = constrain(param[1].toFloat(), 0, 100);
+    		pwm = set_pwm;
+
+    		Serial.println("OK");
+
+    	} else {
+
+    		Serial.println(set_pwm,1); //Show set pwm
+    	}
 
 
     } else if (param[0]=="freq"){
 // Generate square signal - freq [freq] [pwm]
 
     	if (param[2] != "") {
-    		pwm = constrain( param[2].toFloat(), 0, 100) ;
+    		set_pwm = constrain( param[2].toFloat(), 0, 100) ;
+    		pwm = set_pwm;
     	}
 
     	freq(param[1].toInt(), pwm);
