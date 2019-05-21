@@ -1,4 +1,4 @@
-##miniVOLL & qiWELLNESS
+## miniVOLL & qiWELLNESS
 
 One Arduino ino file for beginners. Full functional software for miniVOLL and qiWELLNESS device. 
 See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Polish: https://biotronika.pl/what-is-qiWELLNESS 
