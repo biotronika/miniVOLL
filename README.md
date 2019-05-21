@@ -1,4 +1,4 @@
-See: https://biotronics.eu/what-is-qiWELLNESS
+##miniVOLL & qiWELLNESS
 
 One Arduino ino file for beginners. Full functional software for miniVOLL and qiWELLNESS device. 
 See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Polish: https://biotronika.pl/what-is-qiWELLNESS 
@@ -13,11 +13,11 @@ See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Po
 6. Configure serial port. Plug USB cable to PC and miniVOLL or Adruino Nano board. Then Tools->Port->select proper COM port.
 7. Compile and upload. Sketch->Upload. Wait until on down side of Arduino IDE window see **Done uploading**.
 
-Download qiWELLNESS software for PC:
+### Download qiWELLNESS software for PC:
 [https://biotronics.eu/download-qiWELLNESS](https://biotronics.eu/download-qiWELLNESS)
 
 
-Supported commands:
+### Supported commands:
 * freq [freq] [pwm]  -  Generate impulse signal. [freq] - frequency (0.00Hz - 1kHz). Set multiple frequency by 100 e.g. 13.5Hz = 1350  [ |pwm] - duty cycle (0.0 - 100%) e.g. 5.5
 
 * sfreq  -  Stop generate signal. Change to DC
@@ -35,12 +35,12 @@ Supported commands:
 * eavcalib  -  Calibration of EAV diagnose circuit.
 
 
-TODO:
+#### TODO:
 
 * pd [0|1]  The biological active points (BAP) auto detection by generating voice signal in Vegatest and EAV modes
 
 
-Supported communicats:
+### Supported communicats:
 
 * :btn - Button in active electrode was pressed in diagnose circuit
 
