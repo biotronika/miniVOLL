@@ -18,8 +18,9 @@ See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Po
 
 
 ### Supported commands:
-* **freq [freq] [pwm]**  -  Generate impulse signal. [freq] - frequency (0.00Hz - 1kHz). Set multiple frequency by 100 e.g. 13.5Hz : ...freq 1350...  
-pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: ...freq 1350 5.5...
+* freq [freq] [pwm]  -  Generate impulse signal. [freq] - frequency (0.00Hz - 1kHz). Set multiple frequency by 100 e.g. 13.5Hz : **freq 1350**  
+pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: **freq 1350 5.5**
+
 * sfreq  -  Stop generate signal. Change signal to DC
  
 * pwm [pwm]  -  Duty cycle.  [pwm] - duty cycle (0.0 - 100%) e.g. 5.5% : pwm 5.5
