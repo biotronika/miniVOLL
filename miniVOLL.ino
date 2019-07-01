@@ -10,12 +10,12 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-05-21"
-#define HRDW_VER "NANO 1.1"
+#define SOFT_VER "2019-06-12"
+#define HRDW_VER "NANO 1.2"
 
 #define analogInPin	A3							// Analog input from optocoupler from EAV circuit
 #define buzzerPin	6							// Signal buzzer
-#define analogCurrentPin A5 					// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
+#define analogCurrentPin A7 					// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
 #define electrodePin 10  						// Active electrode EAP signal (II-3)
 #define polarizationPin 2						// Polarization relay pin
 
@@ -29,7 +29,7 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
 
 #define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 480// Above that value current be limited, default 480uA
-#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 3 		// Threshold of cstart communicate, default 3uA
+#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 13 		// Threshold of cstart communicate, default 3uA
 
 #define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
 #define START_PWM 5.0							// Start duty cycle, default 5%, range: 0.0% - 100.0%
