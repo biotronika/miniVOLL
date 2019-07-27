@@ -10,10 +10,10 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-06-12"
+#define SOFT_VER "2019-07-27"
 #define HRDW_VER "NANO 1.2"
 
-#define analogInPin	A3							// Analog input from optocoupler from EAV circuit
+#define eavPin A3							// Analog input from optocoupler from EAV circuit
 #define buzzerPin	6							// Signal buzzer
 #define analogCurrentPin A7 					// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
 #define electrodePin 10  						// Active electrode EAP signal (II-3)
@@ -89,7 +89,7 @@ void setup() {
 	beep(100);
 
 	//EAV startup calibration
-	if (analogRead(analogInPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
+	if (analogRead(eavPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
 
 		// New calibration
 		eavCalibrate();
@@ -296,7 +296,7 @@ long measureVoltage(){
 	  long inputVoltage = 0;
 
 	  for( int i=0; i<8; i++ ){
-		  inputVoltage +=analogRead(analogInPin);
+		  inputVoltage +=analogRead(eavPin);
 	  }
 	  inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 	return inputVoltage;
@@ -321,10 +321,10 @@ void beep(int millis){
 void eavCalibrate(){
 // Calibrate device to 100% in EAV mode with shorted electrodes
 
-	inputVoltage = analogRead(analogInPin)*ONE_BIT_VOLTAGE;
+	inputVoltage = analogRead(eavPin)*ONE_BIT_VOLTAGE;
 
 	for (int i=0;i<100;i++){
-		inputVoltage = (3*inputVoltage + analogRead(analogInPin)*ONE_BIT_VOLTAGE)/4;
+		inputVoltage = (3*inputVoltage + analogRead(eavPin)*ONE_BIT_VOLTAGE)/4;
 	}
 
 	EEPROM.put(EAV_CALIBRATION_ADDRESS, inputVoltage);
@@ -338,10 +338,10 @@ void eavCalibrate(){
 void vegCalibrate(){
 // Calibrate device to 100% in vegatest mode with shorted electrodes
 
-	inputVoltage = analogRead(analogInPin)*ONE_BIT_VOLTAGE;
+	inputVoltage = analogRead(eavPin)*ONE_BIT_VOLTAGE;
 
 	for (int i=0;i<100;i++){
-		inputVoltage = (3*inputVoltage + analogRead(analogInPin)*ONE_BIT_VOLTAGE)/4;
+		inputVoltage = (3*inputVoltage + analogRead(eavPin)*ONE_BIT_VOLTAGE)/4;
 	}
 
 	EEPROM.put( VEG_CALIBRATION_ADDRESS, inputVoltage);
