@@ -14,7 +14,7 @@ See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Po
 7. Compile and upload. Sketch->Upload. Wait until on down side of Arduino IDE window see **Done uploading**.
 
 ### Download qiWELLNESS software for PC:
-[https://biotronics.eu/download-qiWELLNESS](https://biotronics.eu/download-qiWELLNESS)
+[https://biotronics.eu/download](https://biotronics.eu/download)
 
 
 ### Supported commands:
