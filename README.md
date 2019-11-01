@@ -37,7 +37,7 @@ pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: `freq 1350 5.5`
 
 * veg  -  change to Vegatest mode.
 
-* calib  -  Calibration of EAV & Vegatest diagnose circuit. Remember of change EAV/VEGATES switch in right position. See calibration method chapter. PCB hardware makes it automatically.
+* calib  -  Calibration of EAV & Vegatest diagnose circuit. Remember of change EAV/VEGATES switch to right position. See calibration method chapter. PCB hardware makes it automatically.
 
 
 #### TODO:
