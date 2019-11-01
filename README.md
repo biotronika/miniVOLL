@@ -64,7 +64,8 @@ pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: `freq 1350 5.5`
 * :cxxxx yyyy  - Current [uA] and pwm [%] was measured in EAP therapy circuit.
 
 
-### Hardware calibration method: (You have to do once at least with new device with firmware 2019-11-01 and newer):
+### Hardware calibration method: 
+You have to do at least once with new device with firmware 2019-11-01 and newer.
 1. Turn qiWELLNESS device of by putting out USB cable out.
 2. Be sure that internal ION battery is charged. Remove it and recharge the battery if voltage is less then 3.6V
 3. Connect together active and auxiliary socket by inserting the banana cable to diagnose circuit.
