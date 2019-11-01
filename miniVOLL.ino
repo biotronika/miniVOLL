@@ -1,7 +1,10 @@
-/* miniVOLL is firmware software for Arduino miniVOLL device
+/* miniVOLL is free and opensource firmware software for qiWELLNESS device
  * Author: Chris Czoba  krzysiek@biotronika.pl
+ * Copyleft: 11/2019
  *
- * For more see: biotronics.eu
+ * For more see: biotronics.eu in qiWELLNESS section
+ *
+ * Software works with PCB & prototypes version of qiWELLNESS device
  *
  */
 
@@ -10,14 +13,18 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-07-27"
+#define SOFT_VER "2019-11-01"
 #define HRDW_VER "NANO 1.2"
 
-#define eavPin A3							// Analog input from optocoupler from EAV circuit
-#define buzzerPin	6							// Signal buzzer
+#define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
+
+#define buzzerPin 6								// Signal buzzer
+
 #define analogCurrentPin A7 					// Analog input current in passive electrode: R330 with 3.3V ref. (II-2)
+
 #define electrodePin 10  						// Active electrode EAP signal (II-3)
 #define polarizationPin 2						// Polarization relay pin
+#define modeRelayPin 11							// EAV=0 VEG=1 for PCB board
 
 #define ONE_BIT_VOLTAGE 3.2258 					// 1023bits = 3.3V => 1bit = 3.2258mV
 #define ONE_BIT_CURRENT 9.775 					// 1023bits = 3.3V on 330R => 1bit = 9.775uA
@@ -29,7 +36,7 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
 
 #define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 480// Above that value current be limited, default 480uA
-#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 13 		// Threshold of cstart communicate, default 3uA
+#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 13 	// Threshold of cstart communicate, default 3uA
 
 #define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
 #define START_PWM 5.0							// Start duty cycle, default 5%, range: 0.0% - 100.0%
@@ -41,10 +48,8 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define MAX_CMD_PARAMS 3    					// Number of command parameters
 
 #define MODE_EAP 0								// Mode electro(acu)punture (EAP)
-#define MODE_EAV 1								// Mode Voll's electroacupuncture (EAV)
-#define MODE_VEG 2								// Mode vegatest
-
-
+#define MODE_EAV 1								// Mode Voll's electroacupuncture (EAV) & RYODORAKU
+#define MODE_VEG 2								// Mode VEGATEST
 
 
 
@@ -65,8 +70,7 @@ boolean lastPromptSign = true;			// What kind of char was send recently
 boolean buttonPressed = false;			// Is button in active electrode of diagnose circuit pressed
 
 void beep( int millis );
-void eavCalibrate();
-void vegCalibrate();
+void calibrate();
 void freq( unsigned long freq, float pwm );
 void getParams( String &inputString );
 int  executeCmd( String cmdLine );
@@ -80,8 +84,9 @@ void setup() {
 	pinMode(buzzerPin, OUTPUT);
 	pinMode(electrodePin, OUTPUT);
 	pinMode(polarizationPin, OUTPUT);
+	pinMode(modeRelayPin, OUTPUT);
 
-	// Change to 3.3V External Arduino NANO reference
+	// Change to 3.3V external Arduino NANO reference
 	analogReference( INTERNAL );
 
 	Serial.begin( 115000 );
@@ -89,10 +94,10 @@ void setup() {
 	beep(100);
 
 	//EAV startup calibration
-	if (analogRead(eavPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
+	if (analogRead(diagnoseReadPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
 
 		// New calibration
-		eavCalibrate();
+		calibrate();
 
 	} else {
 
@@ -147,51 +152,25 @@ void loop() {
 		  delay(20);
 		  inputVoltage=measureVoltage();
 
-		  if ( (inputVoltage >= (MAX_VEG_INPUT_THRESHOLD_VOLTAGE * 0.95))  ){
+		  started = true;
 
-			  //Anti multiple button communicate trigger
-			  if (!buttonPressed) {
+		  checkPrompt();
+		  Serial.println(":vstart");
 
-					buttonPressed=true;
-
-					checkPrompt();
-					Serial.println(":btn");
-
-					delay(100);
-			  }
-		  } else {
-
-			  started = true;
-
-			  checkPrompt();
-			  Serial.println(":vstart");
-		  }
 }
 
-  // Start measure of eav (3.3V) diagnose circuit
+  // Start measure of eav (3.3V) diagnose circuit (used for ryodoraku as well)
   if ( mode == MODE_EAV && 	inputVoltage > MIN_EAV_INPUT_THRESHOLD_VOLTAGE && !started ) {
 
 	  	  //Second measurement in EAV mode after the signal stabilizes
 	  	  delay(20);
 	  	  inputVoltage=measureVoltage();
 
-	  	  if ( (inputVoltage >= (MAX_EAV_INPUT_THRESHOLD_VOLTAGE * 0.95))  ){
-	  		  if (!buttonPressed) {
+	  	  started = true;
 
-	  			  buttonPressed=true;
+	  	  checkPrompt();
+	  	  Serial.println(":estart");
 
-	  		  	  checkPrompt();
-	  		  	  Serial.println(":btn");
-
-	  		  	  delay(100);
-	  		  }
-	  	  } else {
-
-	  		  started = true;
-
-	  	  	  checkPrompt();
-	  	  	  Serial.println(":estart");
-	  	  }
   }
 
 
@@ -296,7 +275,7 @@ long measureVoltage(){
 	  long inputVoltage = 0;
 
 	  for( int i=0; i<8; i++ ){
-		  inputVoltage +=analogRead(eavPin);
+		  inputVoltage +=analogRead(diagnoseReadPin);
 	  }
 	  inputVoltage = (inputVoltage >> 3) * ONE_BIT_VOLTAGE;
 	return inputVoltage;
@@ -318,38 +297,54 @@ void beep(int millis){
 
 }
 
-void eavCalibrate(){
-// Calibrate device to 100% in EAV mode with shorted electrodes
+void calibrate(){
+// Calibrate device to 100% in EAV mode and 100% in VEG mode with shorted electrodes
+// Calibration method: see README.md
 
-	inputVoltage = analogRead(eavPin)*ONE_BIT_VOLTAGE;
+int beginingRelayState = digitalRead(modeRelayPin);
+
+	//EAV
+	digitalWrite(modeRelayPin, LOW);
+	delay(50);
+
+
+
+	inputVoltage = analogRead(diagnoseReadPin)*ONE_BIT_VOLTAGE;
 
 	for (int i=0;i<100;i++){
-		inputVoltage = (3*inputVoltage + analogRead(eavPin)*ONE_BIT_VOLTAGE)/4;
+		inputVoltage = (3*inputVoltage + analogRead(diagnoseReadPin)*ONE_BIT_VOLTAGE)/4;
 	}
 
 	EEPROM.put(EAV_CALIBRATION_ADDRESS, inputVoltage);
 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = inputVoltage;
-	beep(400);
+	beep(600);
 
 	inputVoltage =0;
 
-}
+	//Veagtest
+	digitalWrite(modeRelayPin, HIGH);
+	delay(50);
 
-void vegCalibrate(){
-// Calibrate device to 100% in vegatest mode with shorted electrodes
-
-	inputVoltage = analogRead(eavPin)*ONE_BIT_VOLTAGE;
+	delay(2000);
 
 	for (int i=0;i<100;i++){
-		inputVoltage = (3*inputVoltage + analogRead(eavPin)*ONE_BIT_VOLTAGE)/4;
+		inputVoltage = (3*inputVoltage + analogRead(diagnoseReadPin)*ONE_BIT_VOLTAGE)/4;
 	}
 
 	EEPROM.put( VEG_CALIBRATION_ADDRESS, inputVoltage);
 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = inputVoltage;
-	beep(400);
+
+	beep(600);
+	delay(300);
+	beep(600);
 
 	inputVoltage =0;
+
+
+	digitalWrite(modeRelayPin,beginingRelayState);
+
 }
+
 
 
 
@@ -511,19 +506,12 @@ int executeCmd(String cmdLine){
 
     	;
 
-	 } else if (param[0]=="vegcalib"){
-// Vegatest calibration maximum voltage = 100%
 
-    	vegCalibrate();
+	 } else if (param[0]=="calib"){
+// EAV & Vegatest calibration circuit, maximum voltage = 100%
+
+    	calibrate();
     	Serial.println(MAX_VEG_INPUT_THRESHOLD_VOLTAGE);
-    	Serial.println("OK");
-
-
-	 } else if (param[0]=="eavcalib"){
-// Vegatest calibration maximum voltage = 100%
-
-    	eavCalibrate();
-    	Serial.println(MAX_EAV_INPUT_THRESHOLD_VOLTAGE);
     	Serial.println("OK");
 
 
@@ -531,7 +519,9 @@ int executeCmd(String cmdLine){
 // Mode veagatest
 
     	freqStop();
+    	digitalWrite(modeRelayPin, HIGH);
     	mode = MODE_VEG;
+
     	EEPROM.get(VEG_CALIBRATION_ADDRESS, MAX_VEG_INPUT_THRESHOLD_VOLTAGE);
     	Serial.println("OK");
 
@@ -540,6 +530,7 @@ int executeCmd(String cmdLine){
 
     	freqStop();
 		mode = MODE_EAV;
+		digitalWrite(modeRelayPin, LOW);
 		EEPROM.get(EAV_CALIBRATION_ADDRESS, MAX_EAV_INPUT_THRESHOLD_VOLTAGE);
 		Serial.println("OK");
 
