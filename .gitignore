@@ -61,3 +61,5 @@ build/NANO (new bootloader)/project/miniVOLL.cpp.d
 build/NANO (new bootloader)/project/miniVOLL.cpp.o
 build/NANO (Old Bootloader)/Makefile
 build/NANO/Makefile
+build/NANO (new bootloader)/-.d
+*.prefs
