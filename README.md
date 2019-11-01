@@ -37,7 +37,7 @@ pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: `freq 1350 5.5`
 
 * veg  -  change to Vegatest mode.
 
-* calib  -  Calibration of EAV & Veagtest diagnose circuit. Remember of change EAV/VEGATES switch in right position. PCB hardware makes it automatically.
+* calib  -  Calibration of EAV & Vegatest diagnose circuit. Remember of change EAV/VEGATES switch in right position. See calibration method chapter. PCB hardware makes it automatically.
 
 
 #### TODO:
@@ -66,12 +66,12 @@ pwm - duty cycle, it is optional parameter (0.0 - 100%) e.g.: `freq 1350 5.5`
 
 ### Hardware calibration method: 
 You have to do at least once with new device with firmware 2019-11-01 and newer.
-1. Turn qiWELLNESS device of by putting out USB cable out.
+1. Turn qiWELLNESS device of by putting USB cable out.
 2. Be sure that internal ION battery is charged. Remove it and recharge the battery if voltage is less then 3.6V
-3. Connect together active and auxiliary socket by inserting the banana cable to diagnose circuit.
+3. Connect together active and auxiliary sockets by inserting the banana cable into diagnose circuit.
 4. If you have prototypes based device put mode switch to EAV/RYODORAKU position. In PCB version it makes automatically.
 5. Insert USB cable and turn the device on.
-6. Wait until one long beep signal stops and change mode switch to VEGATEST position. You do nothing with PCB device.
+6. Wait until one long beep signal stops and change mode switch to VEGATEST position. You have 2 seconds only. You do nothing with PCB device.
 7. Wait for two long beep signal and put USB cable off. Put the banana cable out from diagnose circuit. 
 8. You have done :)
 
