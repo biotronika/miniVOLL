@@ -13,8 +13,8 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-11-01"
-#define HRDW_VER "NANO 1.2"
+#define SOFT_VER "2019-11-03"
+#define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
 
@@ -24,7 +24,9 @@
 
 #define electrodePin 10  						// Active electrode EAP signal (II-3)
 #define polarizationPin 2						// Polarization relay pin
-#define modeRelayPin 11							// EAV=0 VEG=1 for PCB board
+
+#define modeRelayPin 11							// eav=LOW veg=HIGH for PCB board - control relay
+#define switchModePin 12						// eav=LOW veg=HIGH for prototypes board - read switch state
 
 #define ONE_BIT_VOLTAGE 3.2258 					// 1023bits = 3.3V => 1bit = 3.2258mV
 #define ONE_BIT_CURRENT 9.775 					// 1023bits = 3.3V on 330R => 1bit = 9.775uA
@@ -41,8 +43,8 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
 #define START_PWM 5.0							// Start duty cycle, default 5%, range: 0.0% - 100.0%
 
-#define EAV_CALIBRATION_ADDRESS 0				// EEPROM address of calibration value
-#define VEG_CALIBRATION_ADDRESS 2
+#define EAV_CALIBRATION_ADDRESS 0				// EEPROM address of calibration value (long)
+#define VEG_CALIBRATION_ADDRESS 4
 
 #define WELCOME_SCR "bioZAP interpreter welcome! See http://biotronics.eu"
 #define MAX_CMD_PARAMS 3    					// Number of command parameters
@@ -51,6 +53,11 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define MODE_EAV 1								// Mode Voll's electroacupuncture (EAV) & RYODORAKU
 #define MODE_VEG 2								// Mode VEGATEST
 
+#define BOARD_TYPE_UNKNOWN 0			//Device board types. PCB has relay instead of eav/vegatest switch
+#define BOARD_TYPE_PROTOTYPES 1
+#define BOARD_TYPE_PCB 2
+
+#define DEVICE_TYPE_ADDRESS 10			// EEPROM address to save board type
 
 
 
@@ -66,9 +73,12 @@ long inputVoltage = 0;
 boolean started = false;				// Measurement is started (after reached threshold)
 int outputEAVPrecentage = 0;
 
+byte boardType = BOARD_TYPE_UNKNOWN;	// Device board type
+
 boolean lastPromptSign = true;			// What kind of char was send recently
 boolean buttonPressed = false;			// Is button in active electrode of diagnose circuit pressed
 
+//Function prototypes
 void beep( int millis );
 void calibrate();
 void freq( unsigned long freq, float pwm );
@@ -76,6 +86,7 @@ void getParams( String &inputString );
 int  executeCmd( String cmdLine );
 void checkPrompt ();
 long measureVoltage();
+
 
 
 void setup() {
@@ -86,12 +97,26 @@ void setup() {
 	pinMode(polarizationPin, OUTPUT);
 	pinMode(modeRelayPin, OUTPUT);
 
+	pinMode(switchModePin,INPUT_PULLUP);
+
 	// Change to 3.3V external Arduino NANO reference
 	analogReference( INTERNAL );
 
 	Serial.begin( 115000 );
 
 	beep(100);
+
+	//Define board type of device: prototypes or pcb
+	boardType = EEPROM.read(DEVICE_TYPE_ADDRESS);
+
+	switch (boardType){
+	case BOARD_TYPE_PROTOTYPES: break;
+	case BOARD_TYPE_PCB: break;
+	default:
+		boardType = BOARD_TYPE_UNKNOWN;
+	}
+
+
 
 	//EAV startup calibration
 	if (analogRead(diagnoseReadPin) * ONE_BIT_VOLTAGE > MAX_EAV_INPUT_THRESHOLD_VOLTAGE) {
@@ -109,6 +134,16 @@ void setup() {
     Serial.println(WELCOME_SCR);
     Serial.print("Device miniVOLL ");
     Serial.print(HRDW_VER);
+    Serial.print(" ");
+
+	switch (boardType){
+	case BOARD_TYPE_PROTOTYPES: Serial.print("prototypes board"); break;
+	case BOARD_TYPE_PCB: Serial.print("PCB board"); break;
+	default:
+		boardType = BOARD_TYPE_UNKNOWN;
+		Serial.print("unknown board type"); break;
+	}
+
     Serial.print(" ");
     Serial.println(SOFT_VER);
 
@@ -305,9 +340,15 @@ int beginingRelayState = digitalRead(modeRelayPin);
 
 	//EAV
 	digitalWrite(modeRelayPin, LOW);
-	delay(50);
+	delay(2000);
 
+	//Save board type in EEPROM
+	if (digitalRead(switchModePin)==LOW)
+		EEPROM.write(DEVICE_TYPE_ADDRESS, BOARD_TYPE_PROTOTYPES );
+	else
+		EEPROM.write(DEVICE_TYPE_ADDRESS, BOARD_TYPE_PCB);
 
+	boardType = EEPROM.read(DEVICE_TYPE_ADDRESS);
 
 	inputVoltage = analogRead(diagnoseReadPin)*ONE_BIT_VOLTAGE;
 
@@ -317,15 +358,16 @@ int beginingRelayState = digitalRead(modeRelayPin);
 
 	EEPROM.put(EAV_CALIBRATION_ADDRESS, inputVoltage);
 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = inputVoltage;
-	beep(600);
+	beep(1000);
 
 	inputVoltage =0;
 
-	//Veagtest
+	//Veagtest, switch automaticlly
 	digitalWrite(modeRelayPin, HIGH);
-	delay(50);
 
-	delay(2000);
+	//Vegatest, wait for manual switch change
+	delay(5000);
+
 
 	for (int i=0;i<100;i++){
 		inputVoltage = (3*inputVoltage + analogRead(diagnoseReadPin)*ONE_BIT_VOLTAGE)/4;
@@ -334,9 +376,9 @@ int beginingRelayState = digitalRead(modeRelayPin);
 	EEPROM.put( VEG_CALIBRATION_ADDRESS, inputVoltage);
 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = inputVoltage;
 
-	beep(600);
-	delay(300);
-	beep(600);
+	beep(1000);
+	delay(500);
+	beep(1000);
 
 	inputVoltage =0;
 
