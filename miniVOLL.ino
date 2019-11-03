@@ -32,7 +32,7 @@
 #define ONE_BIT_CURRENT 9.775 					// 1023bits = 3.3V on 330R => 1bit = 9.775uA
 
 int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2500; // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
-#define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 900 	// Threshold of estart communicate, default 900 mV
+#define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 700 	// Threshold of estart communicate, default 700 mV
 
 int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000mV
 #define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
@@ -79,11 +79,12 @@ boolean lastPromptSign = true;			// What kind of char was send recently
 boolean buttonPressed = false;			// Is button in active electrode of diagnose circuit pressed
 
 //Function prototypes
-void beep( int millis );
+void beep(int millis);
+void beepWrong();
 void calibrate();
-void freq( unsigned long freq, float pwm );
-void getParams( String &inputString );
-int  executeCmd( String cmdLine );
+void freq(unsigned long freq, float pwm);
+void getParams(String &inputString);
+int  executeCmd(String cmdLine);
 void checkPrompt ();
 long measureVoltage();
 
@@ -183,28 +184,48 @@ void loop() {
   // Start measure of vegatest (1.2V) diagnose circuit
   if ( mode == MODE_VEG && inputVoltage > MIN_VEG_INPUT_THRESHOLD_VOLTAGE && !started ) {
 
-	  	  //Second measurement in VEG mode after the signal stabilizes
-		  delay(20);
-		  inputVoltage=measureVoltage();
+		if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==LOW)) {
 
-		  started = true;
+			Serial.println("Switch device to VEGATEST mode!");
+			beepWrong();
+			started = false;
 
-		  checkPrompt();
-		  Serial.println(":vstart");
+		} else {
+
+		//Second measurement in VEG mode after the signal stabilizes
+			delay(20);
+			inputVoltage=measureVoltage();
+
+			started = true;
+
+			checkPrompt();
+			Serial.println(":vstart");
+
+		}
 
 }
 
   // Start measure of eav (3.3V) diagnose circuit (used for ryodoraku as well)
   if ( mode == MODE_EAV && 	inputVoltage > MIN_EAV_INPUT_THRESHOLD_VOLTAGE && !started ) {
 
-	  	  //Second measurement in EAV mode after the signal stabilizes
-	  	  delay(20);
-	  	  inputVoltage=measureVoltage();
+		if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==HIGH)) {
 
-	  	  started = true;
+			Serial.println("Switch device to EAV mode!");
+			beepWrong();
+			started = false;
 
-	  	  checkPrompt();
-	  	  Serial.println(":estart");
+		} else {
+
+		    //Second measurement in EAV mode after the signal stabilizes
+			delay(20);
+			inputVoltage=measureVoltage();
+
+			started = true;
+
+			checkPrompt();
+			Serial.println(":estart");
+
+		}
 
   }
 
@@ -212,10 +233,10 @@ void loop() {
   // Start measurement of therapy circuit
   if ( mode == MODE_EAP && current >= MIN_EAP_OUTPUT_THRESHOLD_CURRENT  && !started  ) {
 
-	      started = true;
+		started = true;
 
-	      checkPrompt();
-	      Serial.println(":cstart");
+		checkPrompt();
+		Serial.println(":cstart");
 
   }
 
@@ -330,6 +351,15 @@ void beep(int millis){
 	delay(millis);
 	digitalWrite(buzzerPin,LOW);
 
+}
+
+void beepWrong() {
+//Something goes wrong voice signal
+	beep(200);
+	delay(200);
+	beep(200);
+	delay(200);
+	beep(1000);
 }
 
 void calibrate(){
@@ -565,6 +595,11 @@ int executeCmd(String cmdLine){
     	mode = MODE_VEG;
 
     	EEPROM.get(VEG_CALIBRATION_ADDRESS, MAX_VEG_INPUT_THRESHOLD_VOLTAGE);
+    	if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==LOW)) {
+    		Serial.println("Switch device to VEGATEST mode!");
+    		beepWrong();
+    	}
+
     	Serial.println("OK");
 
     } else if (param[0]=="eav"){
@@ -574,6 +609,11 @@ int executeCmd(String cmdLine){
 		mode = MODE_EAV;
 		digitalWrite(modeRelayPin, LOW);
 		EEPROM.get(EAV_CALIBRATION_ADDRESS, MAX_EAV_INPUT_THRESHOLD_VOLTAGE);
+		if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==HIGH)) {
+			Serial.println("Switch device to EAV mode!");
+			beepWrong();
+		}
+
 		Serial.println("OK");
 
     } else if (param[0]=="eap"){
