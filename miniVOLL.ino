@@ -13,7 +13,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-11-03"
+#define SOFT_VER "2019-11-09"
 #define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
@@ -26,6 +26,7 @@
 #define polarizationPin 2						// Polarization relay pin
 
 #define modeRelayPin 11							// eav=LOW veg=HIGH for PCB board - control relay
+#define modeTherapyDiagnoseRealyPin 3			// For jur's version.  therapy=LOW diagnose=HIGH
 #define switchModePin 12						// eav=LOW veg=HIGH for prototypes board - read switch state
 
 #define ONE_BIT_VOLTAGE 3.2258 					// 1023bits = 3.3V => 1bit = 3.2258mV
@@ -97,6 +98,7 @@ void setup() {
 	pinMode(electrodePin, OUTPUT);
 	pinMode(polarizationPin, OUTPUT);
 	pinMode(modeRelayPin, OUTPUT);
+	pinMode(modeTherapyDiagnoseRealyPin, OUTPUT);
 
 	pinMode(switchModePin,INPUT_PULLUP);
 
@@ -591,8 +593,10 @@ int executeCmd(String cmdLine){
 // Mode veagatest
 
     	freqStop();
-    	digitalWrite(modeRelayPin, HIGH);
     	mode = MODE_VEG;
+
+    	digitalWrite(modeRelayPin, HIGH);
+    	digitalWrite(modeTherapyDiagnoseRealyPin, HIGH);
 
     	EEPROM.get(VEG_CALIBRATION_ADDRESS, MAX_VEG_INPUT_THRESHOLD_VOLTAGE);
     	if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==LOW)) {
@@ -606,8 +610,11 @@ int executeCmd(String cmdLine){
 // Mode EAV
 
     	freqStop();
+
 		mode = MODE_EAV;
 		digitalWrite(modeRelayPin, LOW);
+		digitalWrite(modeTherapyDiagnoseRealyPin, HIGH);
+
 		EEPROM.get(EAV_CALIBRATION_ADDRESS, MAX_EAV_INPUT_THRESHOLD_VOLTAGE);
 		if ((boardType==BOARD_TYPE_PROTOTYPES) && (digitalRead(switchModePin)==HIGH)) {
 			Serial.println("Switch device to EAV mode!");
@@ -620,6 +627,8 @@ int executeCmd(String cmdLine){
 // Mode electroacupuncture
 
 		mode = MODE_EAP;
+		digitalWrite(modeTherapyDiagnoseRealyPin, LOW);
+
 		Serial.println("OK");
 
     } else if (param[0]==""){
