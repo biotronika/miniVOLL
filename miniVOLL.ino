@@ -13,7 +13,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-11-09"
+#define SOFT_VER "2019-11-25"
 #define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
@@ -32,7 +32,7 @@
 #define ONE_BIT_VOLTAGE 3.2258 					// 1023bits = 3.3V => 1bit = 3.2258mV
 #define ONE_BIT_CURRENT 9.775 					// 1023bits = 3.3V on 330R => 1bit = 9.775uA
 
-int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2500; // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
+int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2200; //2500; // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
 #define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 700 	// Threshold of estart communicate, default 700 mV
 
 int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000mV
