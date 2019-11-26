@@ -63,3 +63,64 @@ build/NANO (Old Bootloader)/Makefile
 build/NANO/Makefile
 build/NANO (new bootloader)/-.d
 *.prefs
+build/NANO (old) COM12/core.a
+*.d
+build/NANO (old) COM12/core/abi.cpp.o
+build/NANO (old) COM12/core/CDC.cpp.o
+build/NANO (old) COM12/core/HardwareSerial.cpp.o
+build/NANO (old) COM12/core/HardwareSerial0.cpp.o
+build/NANO (old) COM12/core/HardwareSerial1.cpp.o
+build/NANO (old) COM12/core/HardwareSerial2.cpp.o
+build/NANO (old) COM12/core/HardwareSerial3.cpp.o
+build/NANO (old) COM12/core/hooks.c.o
+build/NANO (old) COM12/core/IPAddress.cpp.o
+build/NANO (old) COM12/core/main.cpp.o
+build/NANO (old) COM12/core/new.cpp.o
+build/NANO (old) COM12/core/PluggableUSB.cpp.o
+build/NANO (old) COM12/core/Print.cpp.o
+build/NANO (old) COM12/core/Stream.cpp.o
+build/NANO (old) COM12/core/Tone.cpp.o
+build/NANO (old) COM12/core/USBCore.cpp.o
+build/NANO (old) COM12/core/WInterrupts.c.o
+build/NANO (old) COM12/core/wiring.c.o
+build/NANO (old) COM12/core/wiring_analog.c.o
+build/NANO (old) COM12/core/wiring_digital.c.o
+build/NANO (old) COM12/core/wiring_pulse.c.o
+build/NANO (old) COM12/core/wiring_pulse.S.o
+build/NANO (old) COM12/core/wiring_shift.c.o
+build/NANO (old) COM12/core/WMath.cpp.o
+build/NANO (old) COM12/core/WString.cpp.o
+build/NANO (old) COM12/Makefile
+build/NANO (old) COM12/miniVOLL.elf
+build/NANO (old) COM12/miniVOLL.hex
+build/NANO (old) COM12/project/miniVOLL.cpp.o
+build/NANO 3/core.a
+build/NANO 3/core/abi.cpp.o
+build/NANO 3/core/CDC.cpp.o
+build/NANO 3/core/HardwareSerial.cpp.o
+build/NANO 3/core/HardwareSerial0.cpp.o
+build/NANO 3/core/HardwareSerial1.cpp.o
+build/NANO 3/core/HardwareSerial2.cpp.o
+build/NANO 3/core/HardwareSerial3.cpp.o
+build/NANO 3/core/hooks.c.o
+build/NANO 3/core/IPAddress.cpp.o
+build/NANO 3/core/main.cpp.o
+build/NANO 3/core/new.cpp.o
+build/NANO 3/core/PluggableUSB.cpp.o
+build/NANO 3/core/Print.cpp.o
+build/NANO 3/core/Stream.cpp.o
+build/NANO 3/core/Tone.cpp.o
+build/NANO 3/core/USBCore.cpp.o
+build/NANO 3/core/WInterrupts.c.o
+build/NANO 3/core/wiring.c.o
+build/NANO 3/core/wiring_analog.c.o
+build/NANO 3/core/wiring_digital.c.o
+build/NANO 3/core/wiring_pulse.c.o
+build/NANO 3/core/wiring_pulse.S.o
+build/NANO 3/core/wiring_shift.c.o
+build/NANO 3/core/WMath.cpp.o
+build/NANO 3/core/WString.cpp.o
+build/NANO 3/Makefile
+build/NANO 3/miniVOLL.elf
+build/NANO 3/miniVOLL.hex
+build/NANO 3/project/miniVOLL.cpp.o
