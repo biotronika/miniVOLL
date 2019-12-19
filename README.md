@@ -8,7 +8,7 @@ See: [https://biotronics.eu](https://biotronics.eu/what-is-qiWELLNESS) or for Po
 1. Download miniVOLL.ino file and put it into miniVOLL folder (it must has exactly that name). 
 2. Open miniVOLL.ino file in Arduino IDE.
 3. Check if you have EEPROM library already installed (Sketch->Include Library-> see on list: EEPROM).
-4. Configure board: Tools->Board->Arduino Nano  and **Tools->Processor->ATmega328P (Old Bootloader)**.
+4. Configure board: Tools->Board->Arduino Nano  and **Tools->Processor->ATmega328P (Old Bootloader)** or **ATmega328P** (it depends on your PCB board).
 5. Install Arduino Nano driver - **biotronics.eu** website: [CH341SER.ZIP]( https://biotronika.pl/sites/default/files/2016-12/CH341SER.ZIP).
 6. Configure serial port. Plug USB cable to PC and miniVOLL or Adruino Nano board. Then Tools->Port->select proper COM port.
 7. Compile and upload. Sketch->Upload. Wait until on down side of Arduino IDE window see **Done uploading**.
