@@ -24,7 +24,7 @@ freq without parameter shows set frequency and pwm.
 
 * (REMOVED) sfreq  -  Stop generate signal. Change signal to DC. See **ds**.
 
-* ds - Generate DS (Direct Current) signal in therapy circuit. 5 - 40 V.
+* dc - Generate DS (Direct Current) signal in therapy circuit. 5 - 40 V.
  
 * pwm [pwm]  -  Duty cycle.  [pwm] - duty cycle (0.0 - 100%) e.g. 5.5% : `pwm 5.5`, In **ion** mode you can use pwm as: 100, 90, 50 only.
   
