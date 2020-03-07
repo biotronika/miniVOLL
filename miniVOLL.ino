@@ -13,7 +13,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2019-11-25"
+#define SOFT_VER "2020-03-07"
 #define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
@@ -35,14 +35,29 @@
 int 	MAX_EAV_INPUT_THRESHOLD_VOLTAGE = 2200; //2500; // Is used for calibration purpose. e.g.: 3000mV => 3.3V - 0.30V
 #define MIN_EAV_INPUT_THRESHOLD_VOLTAGE 700 	// Threshold of estart communicate, default 700 mV
 
+//unsigned int max_eav_input_treshold_voltage = MAX_EAV_INPUT_THRESHOLD_VOLTAGE / ONE_BIT_VOLTAGE;
+
 int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000mV
 #define MIN_VEG_INPUT_THRESHOLD_VOLTAGE 300 	// Threshold of vstart communicate, default 300 mV
 
+
+
 #define MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT 480// Above that value current be limited, default 480uA
-#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 13 	// Threshold of cstart communicate, default 3uA
+#define MIN_EAP_OUTPUT_THRESHOLD_CURRENT 20 	// Threshold of cstart communicate, default 20uA
+
+unsigned int max_eap_output_threshold_rms_current = MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT / ONE_BIT_CURRENT;
+unsigned int min_eap_output_threshold_current     = MIN_EAP_OUTPUT_THRESHOLD_CURRENT     / ONE_BIT_CURRENT;
+
+
+
+#define MIN_ION_OUTPUT_THRESHOLD_CURRENT 100		// Threshold of istart communicate, default 100uA
+
+unsigned int min_ion_output_threshold_current     = MIN_ION_OUTPUT_THRESHOLD_CURRENT     / ONE_BIT_CURRENT;
+
+
 
 #define START_FREQ 1000							// Start pulse frequency, default 10Hz (1000) range: 1.00Hz - 1kHz
-#define START_PWM 5.0							// Start duty cycle, default 5%, range: 0.0% - 100.0%
+#define START_PWM 0.05							// Start duty cycle, default 5%, range: 0% - 100% (0 - 1.0)
 
 #define EAV_CALIBRATION_ADDRESS 0				// EEPROM address of calibration value (long)
 #define VEG_CALIBRATION_ADDRESS 4
@@ -53,6 +68,7 @@ int 	MAX_VEG_INPUT_THRESHOLD_VOLTAGE = 1000; // Is used for vegatest e.g.: 1000m
 #define MODE_EAP 0								// Mode electro(acu)punture (EAP)
 #define MODE_EAV 1								// Mode Voll's electroacupuncture (EAV) & RYODORAKU
 #define MODE_VEG 2								// Mode VEGATEST
+#define MODE_ION 4								// Mode ionophorese & zapper up to 1kHz???
 
 #define BOARD_TYPE_UNKNOWN 0			//Device board types. PCB has relay instead of eav/vegatest switch
 #define BOARD_TYPE_PROTOTYPES 1
@@ -66,11 +82,14 @@ String inputString = "";                // Serial, buffer string to hold incomin
 boolean stringComplete = false;         // Serial, whether the string is complete
 String param[MAX_CMD_PARAMS];           // Serial, all parameters of commands. param[0] = command
 
-float set_pwm = START_PWM;				// Duty cycle could be limited because of max range. set_pwm has saved original value.
-volatile float pwm = set_pwm; 			// Actual duty cycle of current
+float pwm = START_PWM;				// Duty cycle could be limited because of max range. set_pwm has saved original value.
+float currentPwm = pwm; 			// Actual duty cycle of current
 volatile unsigned int current = 0;		// Current measurement in therapy circuit. Is used in interruption
-volatile int mode = MODE_EAP;			// Start default mode. Is used in interruption
+unsigned int ui;
+int mode = MODE_EAP;			// Start default mode. Is used in interruption
 long inputVoltage = 0;
+boolean act = 0;						// Iontophoresis active
+unsigned int currentFreq = 0;			// Current set frequency
 boolean started = false;				// Measurement is started (after reached threshold)
 int outputEAVPrecentage = 0;
 
@@ -88,6 +107,7 @@ void getParams(String &inputString);
 int  executeCmd(String cmdLine);
 void checkPrompt ();
 long measureVoltage();
+void activateOutput();
 
 
 
@@ -177,7 +197,7 @@ void loop() {
   }
 
   //First voltage measurement in diagnose circuit for EAV and VEG modes
-  if ( mode != MODE_EAP ) {
+  if ( (mode == MODE_EAV) || (mode == MODE_VEG) ) {
 
 	  inputVoltage = measureVoltage();
   }
@@ -232,16 +252,26 @@ void loop() {
   }
 
 
-  // Start measurement of therapy circuit
-  if ( mode == MODE_EAP && current >= MIN_EAP_OUTPUT_THRESHOLD_CURRENT  && !started  ) {
+  // Start measurement of therapy circuit in EAP mode
+  if ( mode == MODE_EAP && (current * ONE_BIT_CURRENT) >= MIN_EAP_OUTPUT_THRESHOLD_CURRENT  && !started  ) {
 
 		started = true;
 
 		checkPrompt();
 		Serial.println(":cstart");
 
+
   }
 
+  // Start measurement of therapy circuit in ionophoreses
+  if ( mode == MODE_ION && (current * ONE_BIT_CURRENT) >= MIN_ION_OUTPUT_THRESHOLD_CURRENT  && !started  ) {
+
+		started = true;
+
+		checkPrompt();
+		Serial.println(":istart");
+
+  }
 
   // End of measure detection in eav diagnose circuit
   if ( mode == MODE_EAV && started && inputVoltage <= MIN_EAV_INPUT_THRESHOLD_VOLTAGE ){
@@ -297,11 +327,64 @@ void loop() {
   }
 
 
-  // Sent value to serial in therapy circuit
+  // Sent value to serial in therapy circuit in EAP mode
   if ( (mode == MODE_EAP) && started){
 
 	  //Check pressed button (more then 90%)
-	  if (current < MIN_EAP_OUTPUT_THRESHOLD_CURRENT) {
+	  if ( int(current * ONE_BIT_CURRENT) < MIN_EAP_OUTPUT_THRESHOLD_CURRENT) {
+
+		  started=false;
+
+	  	  checkPrompt();
+	  	  Serial.println(":stop");
+
+		  delay(100);
+
+	  } else {
+
+		  // Control maximum level of RMS current by reducing duty cycle (PWM)
+			if (( current * pwm ) > max_eap_output_threshold_rms_current ) {
+
+				currentPwm = max_eap_output_threshold_rms_current / current ;
+
+//TODO: Change control function because of wrong, oscillation behavior - use proportional controller algorithm
+
+				// Set PWM duty cycle
+				cli();
+				OCR1B = currentPwm * OCR1A;
+				sei();
+
+			} else {
+
+				if (currentPwm != pwm) {
+
+					currentPwm = pwm;
+
+					// Set PWM duty cycle
+					cli();
+					OCR1B = currentPwm * OCR1A;
+					sei();
+				}
+			}
+
+
+
+		  checkPrompt();
+		  Serial.print(":c");
+		  Serial.print(int(current * ONE_BIT_CURRENT));   //Serial.println(current);
+		  Serial.print(" ");
+		  Serial.println(currentPwm*100,1);
+
+		  delay(20);
+	  }
+  }
+
+
+  // Sent value to serial in therapy circuit in IPH mode
+  if ( (mode == MODE_ION) && started){
+
+	  //Check pressed button (more then 90%)
+	  if ( int(current * ONE_BIT_CURRENT) < MIN_ION_OUTPUT_THRESHOLD_CURRENT) {
 
 		  started=false;
 
@@ -313,16 +396,14 @@ void loop() {
 	  } else {
 
 		  checkPrompt();
-		  Serial.print(":c");
-		  Serial.print(current);   //Serial.println(current);
+		  Serial.print(":i");
+		  Serial.print(int(current * ONE_BIT_CURRENT));   //Serial.println(current);
 		  Serial.print(" ");
-		  Serial.println(pwm,1);
+		  Serial.println(pwm*100,1);
 
 		  delay(20);
 	  }
   }
-
-
 
 } //loop
 
@@ -425,8 +506,9 @@ int beginingRelayState = digitalRead(modeRelayPin);
 void freq(unsigned long freq, float pwm){
 /* Function generating signal on pin PD10
  * freq put *100, e.g. 10Hz = 1000
- * pwm is duty cycle e.g. 1% = 1.0
+ * curr_pwm is duty cycle e.g. 1% = 1.0
  */
+	unsigned long _freq = constrain(freq, 1, 10000);
 	cli();
 
 	uint16_t prescaler = 1;
@@ -470,10 +552,10 @@ void freq(unsigned long freq, float pwm){
 
 
     // Set the nearest applicable frequency
-    OCR1A = F_CPU / ( prescaler * (freq / 100.0) ) - 1;
+    OCR1A = F_CPU / ( prescaler * (_freq / 100.0) ) - 1;
 
     // Set PWM duty cycle
-    OCR1B = (pwm/100) * OCR1A;
+    OCR1B = pwm * OCR1A;
 
     // Enable timer compare interrupt:
     TIMSK1 |= (1 << OCIE1A);
@@ -482,32 +564,32 @@ void freq(unsigned long freq, float pwm){
 }
 
 
-// Measure of current in EAP during impulse (not RMS value).
+// Measure of current in EAP & IPH during impulse (not RMS value).
 ISR (TIMER1_COMPA_vect){
 
-	if (mode == MODE_EAP) {
-		unsigned int ui  = analogRead(analogCurrentPin);
-					 ui += analogRead(analogCurrentPin);
-					 ui += analogRead(analogCurrentPin);
-					 ui += analogRead(analogCurrentPin);
-					 ui = ui >> 2; //Filter: use 4 samples instead of one
+	 ui  = analogRead(analogCurrentPin);
+	 ui = ui << 2;
+	 ui+= ui;
+	 ui = ui >>2;
+	 //ui += analogRead(analogCurrentPin);
+	 //ui += analogRead(analogCurrentPin);
+	 //ui += analogRead(analogCurrentPin);
+	 //ui += analogRead(analogCurrentPin); // 1.25 = 5/4 is correction of reverse current on Zener diode ~100uA on 330R
+	 //ui = ui >> 2; //Filter: use 4 (5) samples instead of one
 
-		current = ONE_BIT_CURRENT * ui * 1.25;  //1.25 is correction of reverse current on Zener diode ~100uA on 330R
+	 current = ui;
 
-		//Limit RMS current to MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT by changing duty cycle
-		if ( current * set_pwm / 100 > MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT) {
-			pwm =  MAX_EAP_OUTPUT_THRESHOLD_RMS_CURRENT / ( current / 100);
-		} else {
-			pwm = set_pwm;
-		}
 
 //TODO: May I should change 330R to 0R, and correction factor to 1.0 - to consider that!
-	}
+//		1.25 is correction of reverse current on Zener diode ~100uA on 330R
+
+
 
 }
 
 
-void freqStop(){
+
+void dc(){
 
 	cli();
 
@@ -517,6 +599,35 @@ void freqStop(){
     OCR1B = 0;
 
     sei();
+
+    //Current measurement 10 times per second only
+    freq(1000, 1);
+
+    //Write HIGH or LOW depends on active parameter
+    //digitalWrite(electrodePin, act);
+
+    //set freq=0 (dc)
+    currentFreq= 0;
+    currentPwm=1;
+    pwm=1;
+}
+
+void activateOutput(boolean _act){
+//Activate therapy circuit and set global act parameter
+
+	if (_act) {
+
+		freq(currentFreq, currentPwm);
+
+	} else {
+
+		//dc();
+		digitalWrite(electrodePin, LOW);
+		current = 0;
+	}
+	act = _act;
+
+
 }
 
 //Serial commands///////////////////////////////////////////////////////////////////////////
@@ -592,7 +703,7 @@ int executeCmd(String cmdLine){
     } else if (param[0]=="veg"){
 // Mode veagatest
 
-    	freqStop();
+    	dc();
     	mode = MODE_VEG;
 
     	digitalWrite(modeRelayPin, HIGH);
@@ -609,7 +720,8 @@ int executeCmd(String cmdLine){
     } else if (param[0]=="eav"){
 // Mode EAV
 
-    	freqStop();
+    	dc();
+    	activateOutput(0);
 
 		mode = MODE_EAV;
 		digitalWrite(modeRelayPin, LOW);
@@ -628,6 +740,16 @@ int executeCmd(String cmdLine){
 
 		mode = MODE_EAP;
 		digitalWrite(modeTherapyDiagnoseRealyPin, LOW);
+		activateOutput(1);
+
+		Serial.println("OK");
+
+    } else if (param[0]=="ion"){
+// Mode iontophoresis
+
+		mode = MODE_ION;
+		digitalWrite(modeTherapyDiagnoseRealyPin, LOW);
+		activateOutput(1);
 
 		Serial.println("OK");
 
@@ -642,13 +764,20 @@ int executeCmd(String cmdLine){
 			case MODE_EAP :	Serial.println("eap"); break;
 			case MODE_EAV : Serial.println("eav"); break;
 			case MODE_VEG : Serial.println("veg"); break;
+			case MODE_ION : Serial.println("ion"); break;
     	}
 		//Serial.println("OK");
 
     } else if (param[0]=="sfreq"){
-// Stop freq function
+//DEPRECATED Stop freq, change to DC signal
 
-    	freqStop();
+    	dc();
+    	Serial.println("OK");
+
+    } else if (param[0]=="dc"){
+// Change to DC signal
+
+    	dc();
     	Serial.println("OK");
 
 
@@ -670,32 +799,64 @@ int executeCmd(String cmdLine){
     	}
     	Serial.println("OK");
 
+    } else if (param[0]=="act"){
+// Change output signal polarity
+
+    	activateOutput( param[1].toInt() );
+
+    	Serial.println("OK");
+
 
     } else if (param[0]=="pwm"){
-// Change or show pwm duty cycle
+// Change or show curr_pwm duty cycle
 
     	if (param[1] != "") {
 
-    		set_pwm = constrain(param[1].toFloat(), 0, 100);
-    		pwm = set_pwm;
+    		float param1 = param[1].toFloat();
 
-    		Serial.println("OK");
+
+    		if (param1==100) {
+
+				dc();
+				Serial.println("Direct current");
+				Serial.println("OK");
+
+    		} else {
+    			// In ionotophoresis use 50, 90
+				if (mode==MODE_ION) {
+					if (param1<=75.0) {
+						param1=50;
+					} else {
+						param1=90;
+					}
+
+				}
+
+				pwm = constrain(param1, 0, 100) / 100; // 0.0 - 1.0 = 0 - 100%
+				currentPwm = pwm;
+
+				freq(currentFreq,currentPwm);
+
+				Serial.println("OK");
+    		}
 
     	} else {
 
-    		Serial.println(set_pwm,1); //Show set pwm
+    		Serial.println(pwm,1); //Show pwm
     	}
 
 
     } else if (param[0]=="freq"){
-// Generate square signal - freq [freq] [pwm]
+// Generate square signal - freq [freq] [curr_pwm]
 
     	if (param[2] != "") {
-    		set_pwm = constrain( param[2].toFloat(), 0, 100) ;
-    		pwm = set_pwm;
+    		pwm = constrain( param[2].toFloat(), 0, 100) / 100;
+    		currentPwm = pwm;
     	}
 
-    	freq(param[1].toInt(), pwm);
+    	currentFreq = param[1].toInt();
+
+    	freq(currentFreq, currentPwm);
     	Serial.println("OK");
 
 
