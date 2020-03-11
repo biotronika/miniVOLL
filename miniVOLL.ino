@@ -13,7 +13,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2020-03-07"
+#define SOFT_VER "2020-03-11"
 #define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
@@ -739,6 +739,13 @@ int executeCmd(String cmdLine){
 // Mode electroacupuncture
 
 		mode = MODE_EAP;
+
+		if (started){
+		  started=false;
+		  checkPrompt();
+		  Serial.println(":stop");
+		}
+
 		digitalWrite(modeTherapyDiagnoseRealyPin, LOW);
 		activateOutput(1);
 
@@ -748,8 +755,16 @@ int executeCmd(String cmdLine){
 // Mode iontophoresis
 
 		mode = MODE_ION;
+
+		if (started){
+		  started=false;
+		  checkPrompt();
+		  Serial.println(":stop");
+		}
+
+
 		digitalWrite(modeTherapyDiagnoseRealyPin, LOW);
-		activateOutput(1);
+		activateOutput(0);
 
 		Serial.println("OK");
 
@@ -849,6 +864,8 @@ int executeCmd(String cmdLine){
     } else if (param[0]=="freq"){
 // Generate square signal - freq [freq] [curr_pwm]
 
+
+
     	if (param[2] != "") {
     		pwm = constrain( param[2].toFloat(), 0, 100) / 100;
     		currentPwm = pwm;
@@ -856,7 +873,7 @@ int executeCmd(String cmdLine){
 
     	currentFreq = param[1].toInt();
 
-    	freq(currentFreq, currentPwm);
+    	if (act) freq(currentFreq, currentPwm);
     	Serial.println("OK");
 
 
