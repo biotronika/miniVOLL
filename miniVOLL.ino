@@ -13,7 +13,7 @@
 
 //#define SERIAL_DEBUG
 
-#define SOFT_VER "2020-03-11"
+#define SOFT_VER "2020-05-28"
 #define HRDW_VER "NANO 1.3"
 
 #define diagnoseReadPin A3						// Analog input from optocoupler from EAV/vegatest circuit
@@ -125,7 +125,7 @@ void setup() {
 	// Change to 3.3V external Arduino NANO reference
 	analogReference( INTERNAL );
 
-	Serial.begin( 115000 );
+	Serial.begin( 115200 );  //Corrected by G.Z.
 
 	beep(100);
 
@@ -524,8 +524,8 @@ void freq(unsigned long freq, float pwm){
     // Choose the best prescaler for the frequency
     if (freq < 100) {
 
-    	prescaler = 1024;
-    	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (1 << CS11)   | (1 << CS10);
+    	prescaler = 1024;                                      //Corrected by G.Z.
+    	TCCR1B = (1 << WGM13)  | (1 << WGM12)  | (1 << CS12)   | (0 << CS11)   | (1 << CS10);
 
     } else if (freq < 400){
 
